@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: finedge
+      POSTGRES_PASSWORD: finedge_password
+      POSTGRES_DB: stockanalytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://finedge:finedge_password@postgres:5432/stockanalytics
+      NEWS_API_KEY: ${NEWS_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

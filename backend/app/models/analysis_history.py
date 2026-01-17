@@ -1,0 +1,22 @@
+from sqlalchemy import Column, String, DateTime, Text, Index, Integer, Float, JSON
+from datetime import datetime, timezone
+
+from app.database import Base
+
+
+class AnalysisHistory(Base):
+    __tablename__ = "analysis_history"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    ticker = Column(String(20), nullable=False, index=True)
+    market = Column(String(10), nullable=False)
+    analysis_types = Column(JSON, nullable=False)
+    results = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        Index('idx_user_id', 'user_id'),
+        Index('idx_ticker_market', 'ticker', 'market'),
+        Index('idx_created_at', 'created_at'),
+    )
