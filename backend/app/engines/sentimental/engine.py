@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional, Literal
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+import json
 
 from app.engines.sentimental.llm_analyzer import LLMAnalyzer
 from app.integrations.news_api import NewsAPIClient
@@ -89,8 +90,6 @@ class SentimentalEngine:
         market: str,
         articles: List[Dict[str, Any]]
     ) -> None:
-        import json
-
         content = json.dumps(articles)
         await self.cache_manager.save_cached_news(db, ticker, market, content)
 
@@ -149,8 +148,6 @@ class SentimentalEngine:
         ticker: str,
         market: str
     ) -> SentimentalAnalysisResponse:
-        import json
-
         articles = json.loads(cached_content)
         return self._build_response(articles, ticker, market, cached=True)
 

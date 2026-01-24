@@ -1,5 +1,5 @@
 import json
-import time
+import asyncio
 from typing import Dict, Any, List
 import httpx
 
@@ -12,8 +12,9 @@ logger = get_logger(__name__)
 class LLMAnalyzer:
     def __init__(self):
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.api_key = settings.OPENROUTER_API_KEY
-        self.model = "google/gemini-2.0-flash-exp"
+        # Support both OPENROUTER_API_KEY and LLM_API_KEY for compatibility
+        self.api_key = getattr(settings, 'OPENROUTER_API_KEY', None) or settings.LLM_API_KEY
+        self.model = settings.LLM_MODEL
 
     async def analyze_news_article(
         self,
@@ -88,12 +89,12 @@ Provide a JSON response with:
 
                     else:
                         logger.warning(f"LLM API returned status {response.status_code}: {response.text}")
-                        time.sleep(2)
+                        await asyncio.sleep(2)
 
             except Exception as e:
                 logger.warning(f"LLM analysis attempt {attempt + 1} failed: {str(e)}")
                 if attempt < max_retries - 1:
-                    time.sleep(2)
+                    await asyncio.sleep(2)
 
         return self._fallback_response()
 
