@@ -17,7 +17,7 @@ class AnalysisHistory(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     __table_args__ = (
-        Index('idx_user_id', 'user_id'),
-        Index('idx_ticker_market', 'ticker', 'market'),
-        Index('idx_created_at', 'created_at'),
+        Index('idx_analysis_history_user_id', 'user_id'),
+        Index('idx_analysis_history_ticker_market', 'ticker', 'market'),
+        Index('idx_analysis_history_created_at', 'created_at'),
     )

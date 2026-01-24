@@ -19,8 +19,8 @@ class CacheNews(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
 
     __table_args__ = (
-        Index('idx_ticker_market', 'ticker', 'market'),
-        Index('idx_expires_at', 'expires_at'),
+        Index('idx_cache_news_ticker_market', 'ticker', 'market'),
+        Index('idx_cache_news_expires_at', 'expires_at'),
     )
 
     def to_dict(self):

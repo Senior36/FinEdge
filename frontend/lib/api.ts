@@ -24,7 +24,7 @@ const apiClient: AxiosInstance = axios.create({
  */
 apiClient.interceptors.request.use(
   (config) => {
-    const token = getAuthStore().getState().token;
+    const token = getAuthStore().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -50,7 +50,7 @@ apiClient.interceptors.response.use(
       // Handle 401 Unauthorized
       if (status === 401) {
         const authStore = getAuthStore();
-        authStore.getState().logout();
+        authStore.logout();
         window.location.href = '/login';
       }
       
