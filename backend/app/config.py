@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     )
 
     NEWS_API_KEY: str
-    LLM_API_KEY: str
-    OPENROUTER_API_KEY: str  # Alias for LLM_API_KEY for compatibility
+    OPENROUTER_API_KEY: str
     LLM_MODEL: str = "google/gemini-3-flash-preview"
     DATABASE_URL: str
 

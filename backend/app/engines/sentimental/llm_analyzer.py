@@ -12,8 +12,7 @@ logger = get_logger(__name__)
 class LLMAnalyzer:
     def __init__(self):
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        # Support both OPENROUTER_API_KEY and LLM_API_KEY for compatibility
-        self.api_key = getattr(settings, 'OPENROUTER_API_KEY', None) or settings.LLM_API_KEY
+        self.api_key = settings.OPENROUTER_API_KEY
         self.model = settings.LLM_MODEL
 
     async def analyze_news_article(
