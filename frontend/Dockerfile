@@ -5,46 +5,30 @@ FROM node:18-alpine AS base
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
-# Copy package files
 COPY package.json package-lock.json* ./
-
-# Install dependencies
 RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
-
-# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://backend:8000
 
 # Build the application
 RUN npm run build
 
-# Production image, copy all the files and run next
+# Production image, copy all necessary files
 FROM base AS runner
 WORKDIR /app
 
+RUN apk add --no-cache libc6-compat
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://backend:8000
-
-# Create a non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy necessary files from builder
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
+ENV NEXT_PUBLIC_API_URL=http://localhost:8000
 
 EXPOSE 3000
 
