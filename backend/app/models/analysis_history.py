@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Text, Index, Integer, Float, JSON
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from app.database import Base
 
@@ -7,7 +8,7 @@ from app.database import Base
 class AnalysisHistory(Base):
     __tablename__ = "analysis_history"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid4()))
     user_id = Column(String, nullable=False, index=True)
     ticker = Column(String(20), nullable=False, index=True)
     market = Column(String(10), nullable=False)

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Text, Index, Float
 from datetime import datetime, timezone
 import json
+from uuid import uuid4
 
 from app.database import Base
 
@@ -8,7 +9,7 @@ from app.database import Base
 class CacheNews(Base):
     __tablename__ = "cache_news"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid4()))
     ticker = Column(String(20), nullable=False, index=True)
     market = Column(String(10), nullable=False, index=True)
     content = Column(Text, nullable=False)

@@ -39,6 +39,12 @@ if [ "$OPENROUTER_API_KEY" = "your_openrouter_api_key_here" ] || [ -z "$OPENROUT
     exit 1
 fi
 
+if [ "$LLM_API_KEY" = "your_llm_api_key_here" ] || [ -z "$LLM_API_KEY" ]; then
+    echo "❌ ERROR: LLM_API_KEY is not set in .env file"
+    echo "Please edit .env and add your LLM API key"
+    exit 1
+fi
+
 echo "✅ Environment variables verified"
 echo ""
 

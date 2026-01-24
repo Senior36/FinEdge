@@ -37,6 +37,7 @@ It follows the architecture patterns defined in architecture.md.
 
    Required environment variables:
    - `NEWS_API_KEY`: Your EventRegistry API key
+   - `LLM_API_KEY`: Your LLM API key (used if OpenRouter key is not provided)
    - `OPENROUTER_API_KEY`: Your OpenRouter API key
    - `DATABASE_URL`: PostgreSQL connection string (default provided for Docker)
    - `LLM_MODEL`: LLM model to use (default: google/gemini-3-flash-preview)
@@ -216,4 +217,3 @@ MIT
 ## Version
 
 __version__ = "1.0.0"
-

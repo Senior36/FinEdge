@@ -97,7 +97,6 @@ export function SentimentScoreCard({
                 style={{ width: `${confidence * 100}%` }}
               />
             </div>
-            </div>
             <p className="text-sm text-text-secondary mt-1">
               {Math.round(confidence * 100)}%
             </p>

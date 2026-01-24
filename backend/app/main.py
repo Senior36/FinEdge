@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import sentimental_router
+from app.routers import sentimental_router, user_router
 from app.database import engine, Base
+from app import models  # Ensures all models are registered before create_all
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(sentimental_router)
+app.include_router(user_router)
 
 
 @app.get("/")

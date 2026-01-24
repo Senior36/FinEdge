@@ -7,6 +7,7 @@ from app.schemas.sentimental import (
     SentimentalAnalysisResponse
 )
 from app.engines.sentimental.engine import SentimentalEngine
+from app.models.analysis_history import AnalysisHistory
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +31,7 @@ async def analyze_sentiment(
             max_articles=10
         )
 
+        await _save_history(db, request, response)
         return response
 
     except ValueError as e:
@@ -44,3 +46,23 @@ async def analyze_sentiment(
 @router.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "sentimental"}
+
+
+async def _save_history(
+    db: AsyncSession,
+    request: SentimentalAnalysisRequest,
+    response: SentimentalAnalysisResponse
+) -> None:
+    try:
+        record = AnalysisHistory(
+            user_id="anonymous",
+            ticker=request.ticker.upper(),
+            market=request.market,
+            analysis_types=["sentimental"],
+            results=response.model_dump(mode="json")
+        )
+        db.add(record)
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save analysis history: {str(e)}")
+        await db.rollback()
