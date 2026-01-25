@@ -18,7 +18,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_URL}/api`,
-  timeout: 30000, // 30 seconds timeout
+  timeout: 120000, // 120 seconds timeout for LLM-driven analysis
   headers: {
     'Content-Type': 'application/json',
   },

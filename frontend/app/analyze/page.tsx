@@ -96,6 +96,19 @@ export default function AnalyzePage() {
             </div>
           </form>
 
+          {analysisStatus === 'loading' && (
+            <div className="mt-6 rounded-lg border border-border bg-white px-4 py-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-text-primary">Running sentiment analysis</p>
+                <span className="text-sm text-text-secondary">This can take up to ~60s</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 progress-indeterminate" />
+              <div className="mt-3 text-xs text-text-secondary">
+                Fetching fresh articles, scoring sentiment, and aggregating results.
+              </div>
+            </div>
+          )}
+
           {analysisError && (
             <div className="mt-4 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-danger-900">
               {analysisError}

@@ -103,6 +103,32 @@
 }
 
 @layer utilities {
+  @keyframes progress-sweep {
+    0% {
+      transform: translateX(-60%);
+    }
+    50% {
+      transform: translateX(10%);
+    }
+    100% {
+      transform: translateX(60%);
+    }
+  }
+
+  .progress-indeterminate {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-indeterminate::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 45%;
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.8), rgba(37, 99, 235, 0.2));
+    animation: progress-sweep 1.6s ease-in-out infinite;
+  }
+
   /* Text gradient */
   .text-gradient {
     @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
