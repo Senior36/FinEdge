@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +19,7 @@ class CacheManager:
         market: str
     ) -> Optional[CacheNews]:
         cache_key = f"{ticker}_{market}"
-        expiry_time = datetime.now(timezone.utc) - CacheManager.NEWS_CACHE_TTL
+        expiry_time = datetime.utcnow() - CacheManager.NEWS_CACHE_TTL
 
         try:
             stmt = (
@@ -45,15 +45,15 @@ class CacheManager:
         market: str,
         content: str
     ) -> CacheNews:
-        expiry_time = datetime.now(timezone.utc) + CacheManager.NEWS_CACHE_TTL
+        expiry_time = datetime.utcnow() + CacheManager.NEWS_CACHE_TTL
 
         cached_news = CacheNews(
             ticker=ticker,
             market=market,
             content=content,
             source='event_registry',
-            published_at=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            published_at=datetime.utcnow(),
+            cached_at=datetime.utcnow(),
             expires_at=expiry_time
         )
 

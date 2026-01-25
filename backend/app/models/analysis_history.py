@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Text, Index, Integer, Float, JSON
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import uuid4
 
 from app.database import Base
@@ -14,7 +14,7 @@ class AnalysisHistory(Base):
     market = Column(String(10), nullable=False)
     analysis_types = Column(JSON, nullable=False)
     results = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         Index('idx_analysis_history_user_id', 'user_id'),

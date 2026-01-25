@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Text, Index, Float
-from datetime import datetime, timezone
+from datetime import datetime
 import json
 from uuid import uuid4
 
@@ -15,7 +15,7 @@ class CacheNews(Base):
     content = Column(Text, nullable=False)
     source = Column(String(50), nullable=False)
     published_at = Column(DateTime, nullable=False)
-    cached_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    cached_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
 
     __table_args__ = (
