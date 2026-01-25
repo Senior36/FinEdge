@@ -21,7 +21,7 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat curl
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next/standalone ./

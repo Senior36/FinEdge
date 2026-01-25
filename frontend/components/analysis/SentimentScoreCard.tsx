@@ -20,7 +20,7 @@ interface SentimentScoreCardProps {
 
 export function SentimentScoreCard({
   score,
-  overallSentiment,
+  overallSentiment: _overallSentiment,
   confidence,
   trend,
   cached = false,
@@ -42,18 +42,6 @@ export function SentimentScoreCard({
         return <TrendingDown className="text-danger-900" size={20} />;
       case 'Stable':
         return <Minus className="text-text-secondary" size={20} />;
-    }
-  };
-
-  // Get sentiment color
-  const getSentimentColor = () => {
-    switch (overallSentiment) {
-      case 'Positive':
-        return 'text-success-900';
-      case 'Negative':
-        return 'text-danger-900';
-      case 'Neutral':
-        return 'text-text-secondary';
     }
   };
 

@@ -1,5 +1,11 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import type { SentimentalAnalysisRequest, SentimentalAnalysisResponse } from '@/types';
+import type {
+  SentimentalAnalysisRequest,
+  SentimentalAnalysisResponse,
+  AnalysisHistory,
+  AuthResponse,
+  User,
+} from '@/types';
 import { getAuthStore } from '@/stores/authStore';
 
 /**
@@ -39,11 +45,16 @@ apiClient.interceptors.request.use(
  * Response Interceptor
  * Handles common error responses
  */
+type ApiErrorResponse = {
+  detail?: string;
+  message?: string;
+};
+
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error: AxiosError) => {
+  (error: AxiosError<ApiErrorResponse>) => {
     if (error.response) {
       const status = error.response.status;
       
@@ -94,15 +105,24 @@ apiClient.interceptors.response.use(
  * API Error Handler
  * Converts API errors to user-friendly messages
  */
-export const handleApiError = (error: any): string => {
-  if (error.response?.data?.detail) {
-    return error.response.data.detail;
+export const handleApiError = (error: unknown): string => {
+  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    const data = error.response?.data;
+    if (data?.detail) {
+      return data.detail;
+    }
+    if (data?.message) {
+      return data.message;
+    }
+    if (error.message) {
+      return error.message;
+    }
   }
-  
-  if (error.message) {
+
+  if (error instanceof Error) {
     return error.message;
   }
-  
+
   return 'An unexpected error occurred. Please try again.';
 };
 
@@ -128,8 +148,8 @@ export const sentimentApi = {
   /**
    * Get analysis history
    */
-  getHistory: async (config?: InternalAxiosRequestConfig): Promise<any[]> => {
-    const response = await apiClient.get<any[]>('/user/history', config);
+  getHistory: async (config?: InternalAxiosRequestConfig): Promise<AnalysisHistory[]> => {
+    const response = await apiClient.get<AnalysisHistory[]>('/user/history', config);
     return response.data;
   },
   
@@ -155,8 +175,8 @@ export const authApi = {
     email: string,
     password: string,
     config?: InternalAxiosRequestConfig
-  ): Promise<{ token: string; user: any }> => {
-    const response = await apiClient.post<{ token: string; user: any }>(
+  ): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>(
       '/auth/login',
       { email, password },
       config
@@ -172,8 +192,8 @@ export const authApi = {
     password: string,
     full_name?: string,
     config?: InternalAxiosRequestConfig
-  ): Promise<{ token: string; user: any }> => {
-    const response = await apiClient.post<{ token: string; user: any }>(
+  ): Promise<AuthResponse> => {
+    const response = await apiClient.post<AuthResponse>(
       '/auth/register',
       { email, password, full_name },
       config
@@ -191,8 +211,8 @@ export const authApi = {
   /**
    * Get user profile
    */
-  getProfile: async (config?: InternalAxiosRequestConfig): Promise<any> => {
-    const response = await apiClient.get<any>('/user/profile', config);
+  getProfile: async (config?: InternalAxiosRequestConfig): Promise<User> => {
+    const response = await apiClient.get<User>('/user/profile', config);
     return response.data;
   },
   
@@ -202,8 +222,8 @@ export const authApi = {
   updateProfile: async (
     data: { full_name?: string; email?: string },
     config?: InternalAxiosRequestConfig
-  ): Promise<any> => {
-    const response = await apiClient.put<any>('/user/profile', data, config);
+  ): Promise<User> => {
+    const response = await apiClient.put<User>('/user/profile', data, config);
     return response.data;
   },
   
@@ -230,8 +250,8 @@ export const healthApi = {
   /**
    * Check API health
    */
-  check: async (config?: InternalAxiosRequestConfig): Promise<any> => {
-    const response = await apiClient.get<any>('/health', config);
+  check: async (config?: InternalAxiosRequestConfig): Promise<{ status: string }> => {
+    const response = await apiClient.get<{ status: string }>('/health', config);
     return response.data;
   },
 };

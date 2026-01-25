@@ -2,7 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { SentimentDistributionChart } from '@/components/charts';
-import type { NewsSentimentBreakdown, TopArticle } from '@/types';
+import type { NewsSentimentBreakdown } from '@/types';
 
 /**
  * NewsBreakdownCard Component

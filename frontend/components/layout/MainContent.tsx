@@ -15,7 +15,7 @@ export interface MainContentProps {
 
 export function MainContent({ children, className = '' }: MainContentProps) {
   return (
-    <main className={`flex-1 bg-main-bg min-h-screen overflow-y-auto custom-scrollbar ${className}`}>
+    <main className={`flex-1 bg-main-bg min-h-screen overflow-y-auto custom-scrollbar lg:ml-[260px] ${className}`}>
       <div className="p-8">
         {children}
       </div>

@@ -32,12 +32,6 @@ class SentimentalEngine:
     ) -> SentimentalAnalysisResponse:
         logger.info(f"Starting sentimental analysis for {ticker} ({market})")
 
-        cached_news = await self.cache_manager.get_cached_news(db, ticker, market)
-
-        if cached_news:
-            logger.info(f"Using cached data for {ticker}")
-            return self._parse_cached_response(cached_news.content, ticker, market)
-
         articles = await self._fetch_articles(ticker, market, days, max_articles)
 
         if not articles:
@@ -45,8 +39,6 @@ class SentimentalEngine:
             return self._empty_response(ticker, market)
 
         analyzed_articles = await self.llm_analyzer.analyze_news_batch(articles)
-
-        await self._cache_articles(db, ticker, market, analyzed_articles)
 
         return self._build_response(analyzed_articles, ticker, market, cached=False)
 

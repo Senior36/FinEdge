@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, Button } from '@/components/ui';
-import { ExchangeTag, SentimentPill, VerdictBadge } from '@/components/ui';
+import { ExchangeTag, SentimentPill } from '@/components/ui';
 import { SparklineChart } from '@/components/charts';
 
 /**

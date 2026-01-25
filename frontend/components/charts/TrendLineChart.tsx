@@ -29,11 +29,11 @@ export function TrendLineChart({
   data,
   width = 600,
   height = 300,
-  color = '#10B981',
+  color,
 }: TrendLineChartProps) {
   // Determine if overall trend is positive or negative
   const lastScore = data[data.length - 1]?.score || 0;
-  const lineColor = lastScore >= 0 ? '#10B981' : '#EF4444';
+  const lineColor = color ?? (lastScore >= 0 ? '#10B981' : '#EF4444');
 
   return (
     <ResponsiveContainer width={width} height={height}>
@@ -62,11 +62,12 @@ export function TrendLineChart({
             color: '#F8FAFC',
           }}
           labelFormatter={(value: string) => format(new Date(value), 'MMM dd, yyyy')}
-          formatter={(value: number, name: string, props: any) => {
+          formatter={(value: unknown, _name: string, props: { payload?: TrendDataPoint }) => {
+            const numericValue = typeof value === 'number' ? value : Number(value);
             const articleCount = props.payload?.article_count;
             return [
               <div key="score">
-                <div className="font-semibold">Score: {value.toFixed(3)}</div>
+                <div className="font-semibold">Score: {numericValue.toFixed(3)}</div>
                 {articleCount && <div className="text-sm text-gray-400">Articles: {articleCount}</div>}
               </div>
             ];
