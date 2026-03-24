@@ -11,3 +11,5 @@ export type { SentimentDistributionData } from './SentimentDistributionChart';
 
 export { TrendLineChart } from './TrendLineChart';
 export type { TrendDataPoint } from './TrendLineChart';
+
+export { TechnicalCandlesChart } from './TechnicalCandlesChart';

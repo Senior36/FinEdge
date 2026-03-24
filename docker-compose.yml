@@ -36,6 +36,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://finedge:finedge_password@postgres:5432/stockanalytics
       NEWS_API_KEY: ${NEWS_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
       LLM_MODEL: google/gemini-3-flash-preview
     depends_on:
       postgres:

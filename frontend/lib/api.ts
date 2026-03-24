@@ -2,6 +2,8 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import type {
   SentimentalAnalysisRequest,
   SentimentalAnalysisResponse,
+  TechnicalAnalysisRequest,
+  TechnicalAnalysisResponse,
   AnalysisHistory,
   AuthResponse,
   User,
@@ -161,6 +163,20 @@ export const sentimentApi = {
     config?: InternalAxiosRequestConfig
   ): Promise<void> => {
     await apiClient.delete(`/user/history/${id}`, config);
+  },
+};
+
+export const technicalApi = {
+  analyze: async (
+    request: TechnicalAnalysisRequest,
+    config?: InternalAxiosRequestConfig
+  ): Promise<TechnicalAnalysisResponse> => {
+    const response = await apiClient.post<TechnicalAnalysisResponse>(
+      '/analyze/technical',
+      request,
+      config
+    );
+    return response.data;
   },
 };
 

@@ -7,6 +7,7 @@ import {
   LayoutDashboard, 
   Search, 
   BarChart3, 
+  CandlestickChart,
   History, 
   User, 
   Settings, 
@@ -40,6 +41,7 @@ export function Sidebar() {
 
   const navItems: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
+    { label: 'Technical Analysis', href: '/technical', icon: <CandlestickChart size={20} /> },
     { label: 'Sentiment Test', href: '/analyze', icon: <Search size={20} /> },
     { label: 'Results', href: '/results', icon: <BarChart3 size={20} /> },
     { label: 'History', href: '/history', icon: <History size={20} /> },
