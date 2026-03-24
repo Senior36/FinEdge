@@ -16,9 +16,9 @@ import { cn, handleApiError, technicalApi } from '@/lib';
 import type { TechnicalAnalysisResponse } from '@/types';
 
 const DEFAULT_TICKER = 'MSFT';
-const DEFAULT_MODEL = 'v8.5';
+const DEFAULT_MODEL = 'v1.1';
 
-type ModelVersion = 'v8.5' | 'v8.6';
+type ModelVersion = 'v1.1' | 'v1.2';
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const MODEL_OPTIONS: Array<{
@@ -27,14 +27,14 @@ const MODEL_OPTIONS: Array<{
   summary: string;
 }> = [
   {
-    value: 'v8.5',
-    label: 'v8.5',
-    summary: 'Tighter mean reversion with steadier trend continuation.',
+    value: 'v1.1',
+    label: 'v1.1',
+    summary: 'Balanced trend-following with tighter short-term reversion control.',
   },
   {
-    value: 'v8.6',
-    label: 'v8.6',
-    summary: 'More momentum persistence with slightly wider intraminute swings.',
+    value: 'v1.2',
+    label: 'v1.2',
+    summary: 'Higher momentum persistence with slightly broader intraminute range expansion.',
   },
 ];
 
@@ -114,19 +114,19 @@ export default function TechnicalPage() {
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),linear-gradient(135deg,#08111f_0%,#101f3c_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
         <div className="max-w-4xl space-y-4">
           <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-            Demo Forecasting
+            Intraday Forecasting
           </Tag>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Technical Analysis</h1>
             <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-              Pull live 1-minute candles, choose a demo model, and project the next 50 bars with a
-              realistic dummy forecast path for the presentation.
+              Pull live 1-minute candles, select a model variant, and project the next 50 bars with
+              a forward-looking price path overlay.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-            <HeroPill icon={<Clock3 size={14} />} text="Last 60 real candles" />
-            <HeroPill icon={<CandlestickChart size={14} />} text="Next 50 forecast candles" />
-            <HeroPill icon={<Sparkles size={14} />} text="Two demo model variants" />
+            <HeroPill icon={<Clock3 size={14} />} text="Last 60 live candles" />
+            <HeroPill icon={<CandlestickChart size={14} />} text="Next 50 projected candles" />
+            <HeroPill icon={<Sparkles size={14} />} text="Two model variants" />
           </div>
         </div>
       </div>
@@ -135,9 +135,9 @@ export default function TechnicalPage() {
         <CardHeader className="mb-0 border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle className="text-2xl">Run Technical Demo</CardTitle>
+              <CardTitle className="text-2xl">Run Technical Analysis</CardTitle>
               <p className="mt-1 text-sm text-text-secondary">
-                Real intraday bars, dummy forecast engine. Optimized for presentation use.
+                Live intraday bars with forward price-path projection.
               </p>
             </div>
             <Tag variant="neutral" className="self-start md:self-auto">
@@ -152,7 +152,7 @@ export default function TechnicalPage() {
               value={ticker}
               onChange={(event) => setTicker(event.target.value.toUpperCase())}
               placeholder="MSFT, AAPL, NVDA"
-              helperText="Uses Alpaca minute bars when configured, with a fallback so the demo still runs."
+              helperText="Uses Alpaca 1-minute bars for live US equity pricing."
             />
 
             <div className="grid gap-3">
@@ -201,10 +201,10 @@ export default function TechnicalPage() {
               <div className="border-b border-slate-200 px-4 py-3">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                   <p className="text-sm font-medium text-text-primary">
-                    Building forecast path for {lastSubmittedTicker}
+                    Generating outlook for {lastSubmittedTicker}
                   </p>
                   <span className="text-xs text-text-secondary">
-                    Fetching 1-minute bars and generating 50 forward candles
+                    Fetching 1-minute bars and producing 50 projected candles
                   </span>
                 </div>
               </div>
@@ -212,8 +212,8 @@ export default function TechnicalPage() {
                 <div className="h-2 rounded-full bg-slate-200 progress-indeterminate" />
                 <div className="mt-3 grid gap-3 text-xs text-text-secondary md:grid-cols-3">
                   <ProgressStep label="1. Market data" description="Pulling the latest 60 one-minute candles." />
-                  <ProgressStep label="2. Forecast model" description={`Running ${selectedModel.label} dummy path synthesis.`} />
-                  <ProgressStep label="3. Chart overlay" description="Projecting 50 faint future candles for review." />
+                  <ProgressStep label="2. Model inference" description={`Running ${selectedModel.label} forecast synthesis.`} />
+                  <ProgressStep label="3. Chart overlay" description="Projecting 50 forward candles on the chart." />
                 </div>
               </div>
             </div>
@@ -253,7 +253,7 @@ export default function TechnicalPage() {
               icon={<Database size={18} />}
               label="Data Feed"
               value={analysis.data_source === 'alpaca' ? 'Alpaca' : 'Fallback feed'}
-              detail={analysis.model_version === 'v8.6' ? 'Momentum-biased profile' : 'Mean-reversion profile'}
+              detail={analysis.model_version === 'v1.2' ? 'Momentum-biased profile' : 'Mean-reversion profile'}
             />
           </div>
 

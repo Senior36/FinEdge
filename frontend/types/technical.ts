@@ -10,7 +10,7 @@ export interface TechnicalCandle {
 
 export interface TechnicalAnalysisRequest {
   ticker: string;
-  model_version: 'v8.5' | 'v8.6';
+  model_version: 'v1.1' | 'v1.2';
   history_bars?: number;
   forecast_bars?: number;
 }
@@ -18,7 +18,7 @@ export interface TechnicalAnalysisRequest {
 export interface TechnicalAnalysisResponse {
   ticker: string;
   timeframe: '1Min';
-  model_version: 'v8.5' | 'v8.6';
+  model_version: 'v1.1' | 'v1.2';
   data_source: string;
   latest_price: number;
   history_bars: TechnicalCandle[];

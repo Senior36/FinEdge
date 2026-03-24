@@ -4,7 +4,7 @@ import math
 import random
 from datetime import timedelta, timezone, datetime
 from statistics import mean, pstdev
-from typing import Literal, List, Tuple
+from typing import Literal, List
 
 from app.integrations.alpaca_api import AlpacaMarketDataClient
 from app.schemas.technical import (
@@ -53,7 +53,7 @@ class TechnicalAnalysisEngine:
         ticker: str,
         history_bars: List[TechnicalCandle],
         forecast_count: int,
-        model_version: Literal["v8.5", "v8.6"],
+        model_version: Literal["v1.1", "v1.2"],
     ) -> List[TechnicalCandle]:
         closes = [candle.close for candle in history_bars]
         returns = self._returns(closes)
@@ -65,8 +65,6 @@ class TechnicalAnalysisEngine:
         momentum = mean(recent_returns[-3:] or [0.0])
         volatility = max(pstdev(recent_returns), 0.00055)
         average_volume = max(int(mean(recent_volumes or [1000])), 1000)
-        anchor_price = mean(recent_closes)
-
         params = self._model_params(model_version)
         seed = f"{ticker}:{model_version}:{history_bars[-1].timestamp.isoformat()}"
         rng = random.Random(seed)
@@ -115,7 +113,6 @@ class TechnicalAnalysisEngine:
             rolling_closes.append(candle.close)
             prev_close = candle.close
             state_return = bounded_return
-            anchor_price = (anchor_price * 0.92) + (candle.close * 0.08)
 
         return forecast
 
@@ -130,8 +127,8 @@ class TechnicalAnalysisEngine:
                 returns.append((current - previous) / previous)
         return returns
 
-    def _model_params(self, model_version: Literal["v8.5", "v8.6"]) -> dict[str, float]:
-        if model_version == "v8.6":
+    def _model_params(self, model_version: Literal["v1.1", "v1.2"]) -> dict[str, float]:
+        if model_version == "v1.2":
             return {
                 "trend_weight": 0.52,
                 "momentum_memory": 0.22,
