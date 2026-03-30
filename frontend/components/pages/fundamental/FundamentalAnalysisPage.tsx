@@ -20,7 +20,7 @@ import { cn } from '@/lib';
 const DEFAULT_TICKER = 'MSFT';
 const COVERAGE_TICKERS = ['MSFT', 'AAPL', 'NVDA'] as const;
 
-type CoverageTicker = typeof COVERAGE_TICKERS[number];
+export type CoverageTicker = typeof COVERAGE_TICKERS[number];
 type AnalysisLens = 'blend' | 'quality' | 'value';
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 type AccentTone = 'default' | 'success' | 'warning' | 'danger' | 'info';
@@ -100,7 +100,7 @@ interface SpotlightMetric {
   value: string;
 }
 
-interface FundamentalProfile {
+export interface FundamentalProfile {
   ticker: CoverageTicker;
   companyName: string;
   sector: string;
@@ -200,7 +200,7 @@ const TONE_STYLES: Record<
   },
 };
 
-const FUNDAMENTAL_PROFILES: Record<CoverageTicker, FundamentalProfile> = {
+export const FUNDAMENTAL_PROFILES: Record<CoverageTicker, FundamentalProfile> = {
   MSFT: {
     ticker: 'MSFT',
     companyName: 'Microsoft',
@@ -1157,8 +1157,13 @@ const FUNDAMENTAL_PROFILES: Record<CoverageTicker, FundamentalProfile> = {
   },
 };
 
-function isCoverageTicker(ticker: string): ticker is CoverageTicker {
+export function isCoverageTicker(ticker: string): ticker is CoverageTicker {
   return ticker in FUNDAMENTAL_PROFILES;
+}
+
+function resolveCoverageTicker(ticker?: string): CoverageTicker {
+  const normalizedTicker = ticker?.trim().toUpperCase();
+  return normalizedTicker && isCoverageTicker(normalizedTicker) ? normalizedTicker : DEFAULT_TICKER;
 }
 
 function formatDollars(value: number) {
@@ -1189,13 +1194,24 @@ function statusVariant(status: FilingCheckpoint['status']): TagTone {
   return 'success';
 }
 
-export default function FundamentalPage() {
-  const [ticker, setTicker] = useState(DEFAULT_TICKER);
+export interface FundamentalAnalysisPageProps {
+  initialTicker?: string;
+  showHero?: boolean;
+  showControls?: boolean;
+}
+
+export default function FundamentalPage({
+  initialTicker = DEFAULT_TICKER,
+  showHero = true,
+  showControls = true,
+}: FundamentalAnalysisPageProps) {
+  const resolvedInitialTicker = resolveCoverageTicker(initialTicker);
+  const [ticker, setTicker] = useState(resolvedInitialTicker);
   const [lens, setLens] = useState<AnalysisLens>('blend');
   const [status, setStatus] = useState<AnalysisStatus>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<FundamentalProfile>(FUNDAMENTAL_PROFILES[DEFAULT_TICKER]);
-  const [lastSubmittedTicker, setLastSubmittedTicker] = useState(DEFAULT_TICKER);
+  const [profile, setProfile] = useState<FundamentalProfile>(FUNDAMENTAL_PROFILES[resolvedInitialTicker]);
+  const [lastSubmittedTicker, setLastSubmittedTicker] = useState(resolvedInitialTicker);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runAnalysis = useCallback((nextTickerInput: string) => {
@@ -1222,14 +1238,16 @@ export default function FundamentalPage() {
   }, []);
 
   useEffect(() => {
-    runAnalysis(DEFAULT_TICKER);
+    const nextTicker = resolveCoverageTicker(initialTicker);
+    setTicker(nextTicker);
+    runAnalysis(nextTicker);
 
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
     };
-  }, [runAnalysis]);
+  }, [initialTicker, runAnalysis]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1255,168 +1273,172 @@ export default function FundamentalPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_32%),linear-gradient(135deg,#08111f_0%,#0f1b35_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
-          <div className="max-w-4xl space-y-4">
-            <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-              Intrinsic Value Workbench
-            </Tag>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Fundamental Analysis</h1>
-              <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-                Review valuation, profitability, balance-sheet strength, cash generation, peer positioning,
-                and filing checkpoints in one investor-grade workspace.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-              <HeroPill icon={<Landmark size={14} />} text="Income statement, balance sheet, and cash flow" />
-              <HeroPill icon={<BarChart3 size={14} />} text="Relative valuation and peer benchmarking" />
-              <HeroPill icon={<FileText size={14} />} text="Moat, management, and filing checkpoints" />
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-blue-50/65">Current Coverage</p>
-                <p className="mt-2 text-xl font-semibold">
-                  {profile.ticker} <span className="text-blue-50/80">{profile.companyName}</span>
+      {showHero && (
+        <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_32%),linear-gradient(135deg,#08111f_0%,#0f1b35_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+            <div className="max-w-4xl space-y-4">
+              <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
+                Intrinsic Value Workbench
+              </Tag>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Fundamental Analysis</h1>
+                <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
+                  Review valuation, profitability, balance-sheet strength, cash generation, peer positioning,
+                  and filing checkpoints in one investor-grade workspace.
                 </p>
               </div>
-              <Tag variant="neutral" className="border border-white/15 bg-white/8 text-blue-50">
-                {profile.sector}
-              </Tag>
+              <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
+                <HeroPill icon={<Landmark size={14} />} text="Income statement, balance sheet, and cash flow" />
+                <HeroPill icon={<BarChart3 size={14} />} text="Relative valuation and peer benchmarking" />
+                <HeroPill icon={<FileText size={14} />} text="Moat, management, and filing checkpoints" />
+              </div>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-              {profile.spotlightMetrics.map((metric) => (
-                <div key={metric.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
-                  <p className="text-xs text-blue-50/65">{metric.label}</p>
-                  <p className="mt-1 text-base font-semibold text-white">{metric.value}</p>
+
+            <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-blue-50/65">Current Coverage</p>
+                  <p className="mt-2 text-xl font-semibold">
+                    {profile.ticker} <span className="text-blue-50/80">{profile.companyName}</span>
+                  </p>
                 </div>
-              ))}
+                <Tag variant="neutral" className="border border-white/15 bg-white/8 text-blue-50">
+                  {profile.sector}
+                </Tag>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                {profile.spotlightMetrics.map((metric) => (
+                  <div key={metric.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
+                    <p className="text-xs text-blue-50/65">{metric.label}</p>
+                    <p className="mt-1 text-base font-semibold text-white">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <Card className="border border-slate-200/90" variant="bordered" padding="none">
-        <CardHeader className="mb-0 border-b border-slate-200 px-6 py-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-2xl">Run Fundamental Analysis</CardTitle>
-              <p className="mt-1 text-sm text-text-secondary">
-                Compare intrinsic value, cash generation, business quality, and filing-driven risk.
-              </p>
-            </div>
-            <Tag variant="neutral" className="self-start md:self-auto">
-              US large-cap coverage
-            </Tag>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6 p-6">
-          <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_220px] xl:items-end">
-            <div className="space-y-3">
-              <Input
-                label="Ticker"
-                value={ticker}
-                onChange={(event) => setTicker(event.target.value.toUpperCase())}
-                placeholder="MSFT, AAPL, NVDA"
-                helperText="Coverage is set up for large-cap U.S. names with full statement, ratio, and peer stacks."
-                leftIcon={<Search size={18} />}
-              />
-            <div className="flex flex-wrap gap-2">
-              {COVERAGE_TICKERS.map((coverageTicker) => {
-                  const isSelected = coverageTicker === activeCoverageTicker;
-                  return (
-                    <button
-                      key={coverageTicker}
-                      type="button"
-                      onClick={() => onPresetSelect(coverageTicker)}
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors duration-200',
-                        isSelected
-                          ? 'border-primary-500 bg-blue-50 text-primary-700'
-                          : 'border-slate-200 bg-white text-text-secondary hover:border-slate-300 hover:text-text-primary'
-                      )}
-                    >
-                      {coverageTicker}
-                    </button>
-                  );
-                })}
+      {showControls && (
+        <Card className="border border-slate-200/90" variant="bordered" padding="none">
+          <CardHeader className="mb-0 border-b border-slate-200 px-6 py-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-2xl">Run Fundamental Analysis</CardTitle>
+                <p className="mt-1 text-sm text-text-secondary">
+                  Compare intrinsic value, cash generation, business quality, and filing-driven risk.
+                </p>
               </div>
+              <Tag variant="neutral" className="self-start md:self-auto">
+                US large-cap coverage
+              </Tag>
             </div>
-
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-text-primary">Analysis Lens</label>
-                <span className="text-xs text-text-secondary">Prioritize what matters most</span>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {LENS_OPTIONS.map((option) => {
-                  const isSelected = option.value === lens;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setLens(option.value)}
-                      className={cn(
-                        'rounded-2xl border px-4 py-3 text-left transition-all duration-200',
-                        isSelected
-                          ? 'border-primary-500 bg-blue-50 shadow-[0_12px_28px_rgba(37,99,235,0.12)]'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-base font-semibold text-text-primary">{option.label}</span>
-                        <span
-                          className={cn(
-                            'h-3 w-3 rounded-full border',
-                            isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'
-                          )}
-                        />
-                      </div>
-                      <p className="mt-2 text-sm leading-5 text-text-secondary">{option.summary}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <Button type="submit" size="lg" fullWidth isLoading={status === 'loading'} className="h-[52px] text-base">
-              Analyze Fundamentals
-            </Button>
-          </form>
-
-          {status === 'loading' && (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                  <p className="text-sm font-medium text-text-primary">
-                    Building the fundamental stack for {lastSubmittedTicker}
-                  </p>
-                  <span className="text-xs text-text-secondary">
-                    Statement review, ratio stack, and scenario valuation
-                  </span>
+          </CardHeader>
+          <CardContent className="space-y-6 p-6">
+            <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_220px] xl:items-end">
+              <div className="space-y-3">
+                <Input
+                  label="Ticker"
+                  value={ticker}
+                  onChange={(event) => setTicker(event.target.value.toUpperCase())}
+                  placeholder="MSFT, AAPL, NVDA"
+                  helperText="Coverage is set up for large-cap U.S. names with full statement, ratio, and peer stacks."
+                  leftIcon={<Search size={18} />}
+                />
+                <div className="flex flex-wrap gap-2">
+                  {COVERAGE_TICKERS.map((coverageTicker) => {
+                    const isSelected = coverageTicker === activeCoverageTicker;
+                    return (
+                      <button
+                        key={coverageTicker}
+                        type="button"
+                        onClick={() => onPresetSelect(coverageTicker)}
+                        className={cn(
+                          'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                          isSelected
+                            ? 'border-primary-500 bg-blue-50 text-primary-700'
+                            : 'border-slate-200 bg-white text-text-secondary hover:border-slate-300 hover:text-text-primary'
+                        )}
+                      >
+                        {coverageTicker}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="px-4 py-4">
-                <div className="h-2 rounded-full bg-slate-200 progress-indeterminate" />
-                <div className="mt-3 grid gap-3 text-xs text-text-secondary md:grid-cols-3">
-                  <ProgressStep label="1. Filing digest" description="Refreshing the business, risk, and management narrative." />
-                  <ProgressStep label="2. Ratio stack" description="Updating valuation, profitability, and balance-sheet checkpoints." />
-                  <ProgressStep label="3. Scenario view" description={`Applying the ${selectedLens.label.toLowerCase()} to intrinsic value.`} />
+
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-text-primary">Analysis Lens</label>
+                  <span className="text-xs text-text-secondary">Prioritize what matters most</span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {LENS_OPTIONS.map((option) => {
+                    const isSelected = option.value === lens;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setLens(option.value)}
+                        className={cn(
+                          'rounded-2xl border px-4 py-3 text-left transition-all duration-200',
+                          isSelected
+                            ? 'border-primary-500 bg-blue-50 shadow-[0_12px_28px_rgba(37,99,235,0.12)]'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-base font-semibold text-text-primary">{option.label}</span>
+                          <span
+                            className={cn(
+                              'h-3 w-3 rounded-full border',
+                              isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'
+                            )}
+                          />
+                        </div>
+                        <p className="mt-2 text-sm leading-5 text-text-secondary">{option.summary}</p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          )}
 
-          {error && (
-            <div className="rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3 text-danger-900">
-              {error}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <Button type="submit" size="lg" fullWidth isLoading={status === 'loading'} className="h-[52px] text-base">
+                Analyze Fundamentals
+              </Button>
+            </form>
+
+            {status === 'loading' && (
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                    <p className="text-sm font-medium text-text-primary">
+                      Building the fundamental stack for {lastSubmittedTicker}
+                    </p>
+                    <span className="text-xs text-text-secondary">
+                      Statement review, ratio stack, and scenario valuation
+                    </span>
+                  </div>
+                </div>
+                <div className="px-4 py-4">
+                  <div className="h-2 rounded-full bg-slate-200 progress-indeterminate" />
+                  <div className="mt-3 grid gap-3 text-xs text-text-secondary md:grid-cols-3">
+                    <ProgressStep label="1. Filing digest" description="Refreshing the business, risk, and management narrative." />
+                    <ProgressStep label="2. Ratio stack" description="Updating valuation, profitability, and balance-sheet checkpoints." />
+                    <ProgressStep label="3. Scenario view" description={`Applying the ${selectedLens.label.toLowerCase()} to intrinsic value.`} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3 text-danger-900">
+                {error}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard

@@ -14,3 +14,4 @@ export { Tag, ExchangeTag, SectorTag, SentimentPill, VerdictBadge } from './Tag'
 export type { TagVariant, TagSize } from './Tag';
 
 export { Skeleton, CardSkeleton, TableSkeleton, LoadingSpinner, LoadingOverlay } from './Skeleton';
+export { Modal } from './Modal';
