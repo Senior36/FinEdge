@@ -1206,7 +1206,7 @@ export default function FundamentalPage({
   showControls = true,
 }: FundamentalAnalysisPageProps) {
   const resolvedInitialTicker = resolveCoverageTicker(initialTicker);
-  const [ticker, setTicker] = useState(resolvedInitialTicker);
+  const [ticker, setTicker] = useState<string>(resolvedInitialTicker);
   const [lens, setLens] = useState<AnalysisLens>('blend');
   const [status, setStatus] = useState<AnalysisStatus>('loading');
   const [error, setError] = useState<string | null>(null);

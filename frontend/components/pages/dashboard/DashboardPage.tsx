@@ -51,6 +51,12 @@ interface CombinedAnalysisResult {
   completedAt: string | null;
 }
 
+interface CompositeView {
+  title: string;
+  tone: SummaryTone;
+  summary: string;
+}
+
 const WATCHLIST: WatchlistItem[] = [
   {
     ticker: 'MSFT',
@@ -170,11 +176,12 @@ function formatSignedPercent(value: number) {
 function getFundamentalGap(profile: FundamentalProfile) {
   const delta = profile.fairValueBase - profile.price;
   const deltaPct = (delta / profile.price) * 100;
+  const tone: SummaryTone = delta >= 0 ? 'success' : 'warning';
 
   return {
     delta,
     deltaPct,
-    tone: delta >= 0 ? 'success' : 'warning',
+    tone,
   };
 }
 
@@ -195,7 +202,7 @@ function getTechnicalForecastStats(analysis: TechnicalAnalysisResponse | null) {
   };
 }
 
-function buildCompositeView(result: CombinedAnalysisResult | null) {
+function buildCompositeView(result: CombinedAnalysisResult | null): CompositeView | null {
   if (!result) {
     return null;
   }
