@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowUpRight,
   BarChart3,
@@ -15,7 +15,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Tag } from '@/components/ui';
-import { cn } from '@/lib';
+import { cn, fundamentalApi, handleApiError } from '@/lib';
+import type { FundamentalAnalysisResponse } from '@/types';
 
 const DEFAULT_TICKER = 'MSFT';
 const COVERAGE_TICKERS = ['MSFT', 'AAPL', 'NVDA'] as const;
@@ -101,7 +102,7 @@ interface SpotlightMetric {
 }
 
 export interface FundamentalProfile {
-  ticker: CoverageTicker;
+  ticker: string;
   companyName: string;
   sector: string;
   headline: string;
@@ -1161,9 +1162,9 @@ export function isCoverageTicker(ticker: string): ticker is CoverageTicker {
   return ticker in FUNDAMENTAL_PROFILES;
 }
 
-function resolveCoverageTicker(ticker?: string): CoverageTicker {
+function resolveCoverageTicker(ticker?: string): string {
   const normalizedTicker = ticker?.trim().toUpperCase();
-  return normalizedTicker && isCoverageTicker(normalizedTicker) ? normalizedTicker : DEFAULT_TICKER;
+  return normalizedTicker || DEFAULT_TICKER;
 }
 
 function formatDollars(value: number) {
@@ -1180,6 +1181,189 @@ function formatBillions(value: number) {
 
 function formatPercentage(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+}
+
+function formatMetricPercent(value: number | null | undefined) {
+  return value === null || value === undefined ? 'N/A' : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatMetricNumber(value: number | null | undefined, suffix = '') {
+  return value === null || value === undefined ? 'N/A' : `${value.toFixed(2)}${suffix}`;
+}
+
+function toneFromRating(rating: FundamentalAnalysisResponse['rating']): AccentTone {
+  if (rating === 'BUY') {
+    return 'success';
+  }
+  if (rating === 'SELL') {
+    return 'danger';
+  }
+  return 'warning';
+}
+
+export function profileFromFundamentalResponse(response: FundamentalAnalysisResponse): FundamentalProfile {
+  const fallback = isCoverageTicker(response.ticker)
+    ? FUNDAMENTAL_PROFILES[response.ticker]
+    : FUNDAMENTAL_PROFILES[DEFAULT_TICKER];
+  const keyMetrics = response.key_metrics;
+  const ratingTone = toneFromRating(response.rating);
+  const percentile = response.universe_percentile;
+  const percentileText = percentile === null || percentile === undefined ? 'N/A' : `${(percentile * 100).toFixed(0)}th pct`;
+  const rankText = response.relative_rank ? `#${response.relative_rank}` : 'N/A';
+  const modelScoreText = response.model_score === null || response.model_score === undefined
+    ? 'N/A'
+    : response.model_score.toFixed(3);
+
+  return {
+    ...fallback,
+    ticker: response.ticker,
+    companyName: response.company_name,
+    sector: response.sector ?? fallback.sector,
+    headline: `${response.rating} fundamental read from the latest FinEdge model artifact.`,
+    thesis: response.analysis_summary,
+    qualityScore: response.score,
+    qualityLabel: `${response.signal} signal with ${percentileText} universe standing`,
+    shareholderYield: percentileText,
+    balanceSheetLabel: `Source: ${response.data_source}${response.cached ? ' (cached/artifact-backed)' : ''}`,
+    spotlightMetrics: [
+      { label: 'Model score', value: modelScoreText },
+      { label: 'Universe rank', value: rankText },
+      { label: 'Signal date', value: response.source_signal_date ?? 'Latest' },
+    ],
+    lensNotes: {
+      blend: {
+        title: 'Model-backed fundamental read',
+        summary: response.analysis_summary,
+        question: 'Do the next filings confirm the model signal and the current peer ranking?',
+        tone: ratingTone === 'danger' ? 'danger' : ratingTone === 'success' ? 'success' : 'warning',
+      },
+      quality: {
+        title: 'Quality and financial health',
+        summary: `${formatMetricPercent(keyMetrics.roe)} ROE, ${formatMetricPercent(
+          keyMetrics.free_cash_flow_margin
+        )} free-cash-flow margin, and ${response.trends.cash_flow.toLowerCase()} cash-flow trend.`,
+        question: 'Is profitability being converted into durable free cash flow?',
+        tone: keyMetrics.roe !== null && keyMetrics.roe !== undefined && keyMetrics.roe > 0.15 ? 'success' : 'info',
+      },
+      value: {
+        title: 'Valuation discipline',
+        summary: `P/E is ${formatMetricNumber(keyMetrics.pe_ratio)} while the model score is ${response.score.toFixed(1)} / 10.`,
+        question: 'Does the current valuation leave enough margin for the fundamental signal?',
+        tone: keyMetrics.pe_ratio !== null && keyMetrics.pe_ratio !== undefined && keyMetrics.pe_ratio > 35 ? 'warning' : 'info',
+      },
+    },
+    scoreBands: [
+      {
+        label: 'Model signal',
+        score: response.score,
+        summary: `${response.signal} from the latest available fundamental model artifact.`,
+        tone: ratingTone,
+      },
+      {
+        label: 'Peer rank',
+        score: percentile === null || percentile === undefined ? 5 : percentile * 10,
+        summary: `${percentileText} across the model universe.`,
+        tone: percentile !== null && percentile !== undefined && percentile >= 0.7 ? 'success' : 'info',
+      },
+      {
+        label: 'Profitability',
+        score: keyMetrics.roe === null || keyMetrics.roe === undefined ? 5 : Math.min(Math.max(keyMetrics.roe * 20, 0), 10),
+        summary: `ROE: ${formatMetricPercent(keyMetrics.roe)}. Free-cash-flow margin: ${formatMetricPercent(
+          keyMetrics.free_cash_flow_margin
+        )}.`,
+        tone: 'success',
+      },
+      {
+        label: 'Growth trend',
+        score:
+          keyMetrics.revenue_growth_yoy === null || keyMetrics.revenue_growth_yoy === undefined
+            ? 5
+            : Math.min(Math.max((keyMetrics.revenue_growth_yoy + 0.2) * 25, 0), 10),
+        summary: `Revenue growth: ${formatMetricPercent(keyMetrics.revenue_growth_yoy)}. Earnings growth: ${formatMetricPercent(
+          keyMetrics.earnings_growth_yoy
+        )}.`,
+        tone: keyMetrics.revenue_growth_yoy !== null && keyMetrics.revenue_growth_yoy !== undefined && keyMetrics.revenue_growth_yoy < 0 ? 'warning' : 'info',
+      },
+    ],
+    contextSignals: [
+      { label: 'Rating', detail: response.rating },
+      { label: 'Model signal', detail: response.signal },
+      { label: 'Data source', detail: response.data_source },
+    ],
+    valuationChecks: [
+      {
+        label: 'P/E ratio',
+        value: formatMetricNumber(keyMetrics.pe_ratio),
+        benchmark: 'Lower is generally cheaper',
+        summary: 'Direct valuation ratio from EODHD highlights when available.',
+        tone: keyMetrics.pe_ratio !== null && keyMetrics.pe_ratio !== undefined && keyMetrics.pe_ratio > 35 ? 'warning' : 'info',
+      },
+      {
+        label: 'Universe percentile',
+        value: percentileText,
+        benchmark: 'Model peer universe',
+        summary: 'Cross-sectional model standing from the latest signal artifact.',
+        tone: percentile !== null && percentile !== undefined && percentile >= 0.7 ? 'success' : 'info',
+      },
+      {
+        label: 'Model score',
+        value: `${response.score.toFixed(1)} / 10`,
+        benchmark: 'FinEdge fundamental model',
+        summary: response.analysis_summary,
+        tone: ratingTone,
+      },
+    ],
+    healthChecks: [
+      {
+        label: 'ROE',
+        value: formatMetricPercent(keyMetrics.roe),
+        benchmark: 'Profitability quality',
+        summary: `Earnings trend is ${response.trends.earnings.toLowerCase()}.`,
+        tone: keyMetrics.roe !== null && keyMetrics.roe !== undefined && keyMetrics.roe > 0.15 ? 'success' : 'info',
+      },
+      {
+        label: 'Debt to equity',
+        value: formatMetricNumber(keyMetrics.debt_to_equity),
+        benchmark: 'Balance-sheet leverage',
+        summary: 'Used as a quick financial risk checkpoint.',
+        tone: keyMetrics.debt_to_equity !== null && keyMetrics.debt_to_equity !== undefined && keyMetrics.debt_to_equity > 2 ? 'warning' : 'success',
+      },
+      {
+        label: 'FCF margin',
+        value: formatMetricPercent(keyMetrics.free_cash_flow_margin),
+        benchmark: 'Cash conversion',
+        summary: `Cash-flow trend is ${response.trends.cash_flow.toLowerCase()}.`,
+        tone:
+          keyMetrics.free_cash_flow_margin !== null &&
+          keyMetrics.free_cash_flow_margin !== undefined &&
+          keyMetrics.free_cash_flow_margin > 0.15
+            ? 'success'
+            : 'info',
+      },
+    ],
+    strengths: response.strengths.length ? response.strengths : fallback.strengths,
+    risks: response.concerns.length ? response.concerns : fallback.risks,
+    catalysts: [
+      `Next model artifact refresh for ${response.ticker}`,
+      'Upcoming quarterly filing updates',
+      ...fallback.catalysts.slice(0, 1),
+    ],
+    filingChecklist: [
+      {
+        title: 'Latest model artifact',
+        cadence: response.source_signal_date ?? 'Latest',
+        summary: `${response.signal} signal, ${rankText} rank, ${percentileText} universe percentile.`,
+        status: 'Reviewed',
+      },
+      {
+        title: 'Financial statements',
+        cadence: 'Quarterly',
+        summary: 'Refresh EODHD fundamentals when new filings are published.',
+        status: response.data_source.includes('eodhd') ? 'Reviewed' : 'Monitor',
+      },
+      ...fallback.filingChecklist.slice(0, 3),
+    ],
+  };
 }
 
 function statusVariant(status: FilingCheckpoint['status']): TagTone {
@@ -1210,20 +1394,17 @@ export default function FundamentalPage({
   const [lens, setLens] = useState<AnalysisLens>('blend');
   const [status, setStatus] = useState<AnalysisStatus>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<FundamentalProfile>(FUNDAMENTAL_PROFILES[resolvedInitialTicker]);
+  const [profile, setProfile] = useState<FundamentalProfile>(
+    isCoverageTicker(resolvedInitialTicker) ? FUNDAMENTAL_PROFILES[resolvedInitialTicker] : FUNDAMENTAL_PROFILES[DEFAULT_TICKER]
+  );
   const [lastSubmittedTicker, setLastSubmittedTicker] = useState(resolvedInitialTicker);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const runAnalysis = useCallback((nextTickerInput: string) => {
+  const runAnalysis = useCallback(async (nextTickerInput: string) => {
     const normalizedTicker = nextTickerInput.trim().toUpperCase();
 
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-
-    if (!isCoverageTicker(normalizedTicker)) {
+    if (!normalizedTicker) {
       setStatus('error');
-      setError('Coverage is currently focused on MSFT, AAPL, and NVDA.');
+      setError('Enter a ticker to run fundamental analysis.');
       return;
     }
 
@@ -1231,22 +1412,27 @@ export default function FundamentalPage({
     setError(null);
     setLastSubmittedTicker(normalizedTicker);
 
-    timerRef.current = setTimeout(() => {
-      setProfile(FUNDAMENTAL_PROFILES[normalizedTicker]);
+    try {
+      const response = await fundamentalApi.analyze({
+        ticker: normalizedTicker,
+        market: 'US',
+        include_peer_context: true,
+      });
+      setProfile(profileFromFundamentalResponse(response));
       setStatus('success');
-    }, 900);
+    } catch (apiError) {
+      setStatus('error');
+      setError(handleApiError(apiError));
+      if (isCoverageTicker(normalizedTicker)) {
+        setProfile(FUNDAMENTAL_PROFILES[normalizedTicker]);
+      }
+    }
   }, []);
 
   useEffect(() => {
     const nextTicker = resolveCoverageTicker(initialTicker);
     setTicker(nextTicker);
-    runAnalysis(nextTicker);
-
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
+    void runAnalysis(nextTicker);
   }, [initialTicker, runAnalysis]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1261,7 +1447,7 @@ export default function FundamentalPage({
 
   const selectedLens = LENS_OPTIONS.find((option) => option.value === lens) ?? LENS_OPTIONS[0];
   const activeLensNote = profile.lensNotes[lens];
-  const activeCoverageTicker = status === 'loading' && isCoverageTicker(lastSubmittedTicker) ? lastSubmittedTicker : profile.ticker;
+  const activeCoverageTicker = status === 'loading' ? lastSubmittedTicker : profile.ticker;
 
   const valuationDelta = useMemo(() => profile.fairValueBase - profile.price, [profile.fairValueBase, profile.price]);
   const valuationDeltaPct = useMemo(
@@ -1341,8 +1527,8 @@ export default function FundamentalPage({
                   label="Ticker"
                   value={ticker}
                   onChange={(event) => setTicker(event.target.value.toUpperCase())}
-                  placeholder="MSFT, AAPL, NVDA"
-                  helperText="Coverage is set up for large-cap U.S. names with full statement, ratio, and peer stacks."
+                  placeholder="AAPL, MSFT, GOOGL, TSLA"
+                  helperText="Uses the latest backend model artifact, with EODHD metrics when configured."
                   leftIcon={<Search size={18} />}
                 />
                 <div className="flex flex-wrap gap-2">

@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import sentimental_router, technical_router, user_router
+from app.routers import fundamental_router, sentimental_router, technical_router, user_router
 from app.database import engine, Base
 from app import models  # Ensures all models are registered before create_all
 from app.config import settings
@@ -36,6 +36,7 @@ app.add_middleware(
 
 app.include_router(sentimental_router)
 app.include_router(technical_router)
+app.include_router(fundamental_router)
 app.include_router(user_router)
 
 
@@ -47,6 +48,7 @@ async def root():
         "endpoints": {
             "sentimental": "/api/analyze/sentimental",
             "technical": "/api/analyze/technical",
+            "fundamental": "/api/analyze/fundamental",
             "health": "/api/health"
         }
     }

@@ -3,3 +3,36 @@ backend/.env
 frontend/.env
 **/.env.local
 **/.env.*.local
+
+# Local research/model artifacts
+fundamental_model/
+
+# Python generated files and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# JavaScript/Next.js generated files
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+.ipynb_checkpoints/
+
+# Logs and local databases
+*.log
+*.sqlite
+*.sqlite3
+*.db

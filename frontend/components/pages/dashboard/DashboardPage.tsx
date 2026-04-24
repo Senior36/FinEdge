@@ -18,11 +18,12 @@ import { SentimentResults } from '@/components/analysis';
 import { SparklineChart, TechnicalCandlesChart } from '@/components/charts';
 import FundamentalAnalysisPage, {
   FUNDAMENTAL_PROFILES,
+  profileFromFundamentalResponse,
   type CoverageTicker,
   type FundamentalProfile,
 } from '@/components/pages/fundamental/FundamentalAnalysisPage';
 import { Button, Card, CardContent, CardHeader, CardTitle, Modal, Tag } from '@/components/ui';
-import { cn, handleApiError, sentimentApi, technicalApi } from '@/lib';
+import { cn, fundamentalApi, handleApiError, sentimentApi, technicalApi } from '@/lib';
 import type { SentimentalAnalysisResponse, TechnicalAnalysisResponse } from '@/types';
 
 type DashboardStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -46,6 +47,7 @@ interface CombinedAnalysisResult {
   fundamental: FundamentalProfile;
   technical: TechnicalAnalysisResponse | null;
   sentiment: SentimentalAnalysisResponse | null;
+  fundamentalError: string | null;
   technicalError: string | null;
   sentimentError: string | null;
   completedAt: string | null;
@@ -252,18 +254,24 @@ export default function DashboardPage() {
     setModalView(null);
     setStatus('loading');
 
-    const fundamental = FUNDAMENTAL_PROFILES[ticker];
+    const fallbackFundamental = FUNDAMENTAL_PROFILES[ticker];
     setAnalysis({
       ticker,
-      fundamental,
+      fundamental: fallbackFundamental,
       technical: null,
       sentiment: null,
+      fundamentalError: null,
       technicalError: null,
       sentimentError: null,
       completedAt: null,
     });
 
-    const [technicalResult, sentimentResult] = await Promise.allSettled([
+    const [fundamentalResult, technicalResult, sentimentResult] = await Promise.allSettled([
+      fundamentalApi.analyze({
+        ticker,
+        market: 'US',
+        include_peer_context: true,
+      }),
       technicalApi.analyze({
         ticker,
         model_version: 'v1.1',
@@ -278,22 +286,21 @@ export default function DashboardPage() {
 
     const nextAnalysis: CombinedAnalysisResult = {
       ticker,
-      fundamental,
+      fundamental:
+        fundamentalResult.status === 'fulfilled'
+          ? profileFromFundamentalResponse(fundamentalResult.value)
+          : fallbackFundamental,
       technical: technicalResult.status === 'fulfilled' ? technicalResult.value : null,
       sentiment: sentimentResult.status === 'fulfilled' ? sentimentResult.value : null,
+      fundamentalError: fundamentalResult.status === 'rejected' ? handleApiError(fundamentalResult.reason) : null,
       technicalError: technicalResult.status === 'rejected' ? handleApiError(technicalResult.reason) : null,
       sentimentError: sentimentResult.status === 'rejected' ? handleApiError(sentimentResult.reason) : null,
       completedAt: new Date().toISOString(),
     };
 
     setAnalysis(nextAnalysis);
-    setStatus(nextAnalysis.technical || nextAnalysis.sentiment ? 'success' : 'error');
+    setStatus(fundamentalResult.status === 'fulfilled' || nextAnalysis.technical || nextAnalysis.sentiment ? 'success' : 'error');
   }, []);
-
-  const activeWatchlistItem = useMemo(
-    () => WATCHLIST.find((item) => item.ticker === focusedTicker) ?? null,
-    [focusedTicker]
-  );
 
   const compositeView = useMemo(() => buildCompositeView(analysis), [analysis]);
   const technicalStats = useMemo(() => getTechnicalForecastStats(analysis?.technical ?? null), [analysis?.technical]);
@@ -632,8 +639,8 @@ export default function DashboardPage() {
               : `${analysis?.ticker ?? ''} Sentiment Analysis`
         }
         description={
-          activeWatchlistItem
-            ? `${activeWatchlistItem.ticker} · ${FUNDAMENTAL_PROFILES[activeWatchlistItem.ticker].companyName}`
+          analysis
+            ? `${analysis.ticker} · ${analysis.fundamental.companyName}`
             : undefined
         }
       >

@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     ALPACA_API_KEY: str | None = None
     ALPACA_SECRET_KEY: str | None = None
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
+    EODHD_API_KEY: str | None = None
+    EODHD_BASE_URL: str = "https://eodhd.com/api"
+    FUNDAMENTAL_ARTIFACT_DIR: str = "/app/artifacts/fundamental"
+    FUNDAMENTAL_ANALYSIS_CACHE_HOURS: int = 24
+    FUNDAMENTAL_REPORT_CACHE_DAYS: int = 7
     LLM_MODEL: str = "google/gemini-3-flash-preview"
     DATABASE_URL: str
     SECRET_KEY: str = "change-me"

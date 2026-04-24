@@ -28,6 +28,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
+      - ./fundamental_model/fundamental_model/outputs:/app/artifacts/fundamental:ro
     ports:
       - "8000:8000"
     environment:
@@ -36,6 +37,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       ALPACA_API_KEY: ${ALPACA_API_KEY:-}
       ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
+      EODHD_API_KEY: ${EODHD_API_KEY:-}
+      FUNDAMENTAL_ARTIFACT_DIR: /app/artifacts/fundamental
       LLM_MODEL: google/gemini-3-flash-preview
     depends_on:
       postgres:

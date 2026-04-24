@@ -2,6 +2,8 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import type {
   SentimentalAnalysisRequest,
   SentimentalAnalysisResponse,
+  FundamentalAnalysisRequest,
+  FundamentalAnalysisResponse,
   TechnicalAnalysisRequest,
   TechnicalAnalysisResponse,
   AnalysisHistory,
@@ -173,6 +175,20 @@ export const technicalApi = {
   ): Promise<TechnicalAnalysisResponse> => {
     const response = await apiClient.post<TechnicalAnalysisResponse>(
       '/analyze/technical',
+      request,
+      config
+    );
+    return response.data;
+  },
+};
+
+export const fundamentalApi = {
+  analyze: async (
+    request: FundamentalAnalysisRequest,
+    config?: InternalAxiosRequestConfig
+  ): Promise<FundamentalAnalysisResponse> => {
+    const response = await apiClient.post<FundamentalAnalysisResponse>(
+      '/analyze/fundamental',
       request,
       config
     );
