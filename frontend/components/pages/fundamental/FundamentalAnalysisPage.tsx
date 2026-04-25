@@ -1453,6 +1453,7 @@ export default function FundamentalPage({
   );
 
   const valuationTone: AccentTone = valuationDelta >= 0 ? 'success' : 'danger';
+  const shouldShowResults = status === 'success';
 
   return (
     <div className="space-y-6">
@@ -1618,7 +1619,7 @@ export default function FundamentalPage({
               <div className="rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3 text-danger-900">
                 {error}
                 <p className="mt-2 text-sm">
-                  Static profile data is not used as a substitute for a missing backend model signal.
+                  The results area will stay hidden until the backend returns a model-backed signal.
                 </p>
               </div>
             )}
@@ -1626,41 +1627,43 @@ export default function FundamentalPage({
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          icon={<Wallet size={18} />}
-          label="Market Price"
-          value={formatDollars(profile.price)}
-          detail={`${profile.marketCap} market cap`}
-        />
-        <MetricCard
-          icon={<Landmark size={18} />}
-          label="Base Fair Value"
-          value={formatDollars(profile.fairValueBase)}
-          detail={`${formatDollars(profile.fairValueLow)} to ${formatDollars(profile.fairValueHigh)} scenario range`}
-          accent="info"
-        />
-        <MetricCard
-          icon={valuationDelta >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-          label="Valuation Gap"
-          value={formatPercentage(valuationDeltaPct)}
-          detail={`${valuationDelta >= 0 ? '+' : '-'}${formatDollars(Math.abs(valuationDelta))} versus base case`}
-          accent={valuationTone}
-        />
-        <MetricCard
-          icon={<ShieldCheck size={18} />}
-          label="Quality Score"
-          value={`${profile.qualityScore.toFixed(1)} / 10`}
-          detail={profile.qualityLabel}
-          accent="success"
-        />
-        <MetricCard
-          icon={<Sparkles size={18} />}
-          label="Shareholder Yield"
-          value={profile.shareholderYield}
-          detail={profile.balanceSheetLabel}
-        />
-      </div>
+      {shouldShowResults && (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard
+              icon={<Wallet size={18} />}
+              label="Market Price"
+              value={formatDollars(profile.price)}
+              detail={`${profile.marketCap} market cap`}
+            />
+            <MetricCard
+              icon={<Landmark size={18} />}
+              label="Base Fair Value"
+              value={formatDollars(profile.fairValueBase)}
+              detail={`${formatDollars(profile.fairValueLow)} to ${formatDollars(profile.fairValueHigh)} scenario range`}
+              accent="info"
+            />
+            <MetricCard
+              icon={valuationDelta >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+              label="Valuation Gap"
+              value={formatPercentage(valuationDeltaPct)}
+              detail={`${valuationDelta >= 0 ? '+' : '-'}${formatDollars(Math.abs(valuationDelta))} versus base case`}
+              accent={valuationTone}
+            />
+            <MetricCard
+              icon={<ShieldCheck size={18} />}
+              label="Quality Score"
+              value={`${profile.qualityScore.toFixed(1)} / 10`}
+              detail={profile.qualityLabel}
+              accent="success"
+            />
+            <MetricCard
+              icon={<Sparkles size={18} />}
+              label="Shareholder Yield"
+              value={profile.shareholderYield}
+              detail={profile.balanceSheetLabel}
+            />
+          </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <Card className="border border-slate-200/90" variant="bordered" padding="none">
@@ -1950,6 +1953,8 @@ export default function FundamentalPage({
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

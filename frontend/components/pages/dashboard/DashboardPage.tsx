@@ -209,13 +209,14 @@ function buildCompositeView(result: CombinedAnalysisResult | null): CompositeVie
     return null;
   }
 
-  const fundamentalGap = getFundamentalGap(result.fundamental);
+  const fundamentalGap = result.fundamentalError ? null : getFundamentalGap(result.fundamental);
   const technicalStats = getTechnicalForecastStats(result.technical);
+  const fundamentalPositive = fundamentalGap ? fundamentalGap.delta >= 0 : null;
   const technicalPositive = technicalStats ? technicalStats.projectedMove >= 0 : null;
   const sentimentPositive = result.sentiment ? result.sentiment.overall_sentiment === 'Positive' : null;
 
-  const positiveSignals = [fundamentalGap.delta >= 0, technicalPositive, sentimentPositive].filter(Boolean).length;
-  const availableSignals = [true, technicalPositive !== null, sentimentPositive !== null].filter(Boolean).length;
+  const positiveSignals = [fundamentalPositive, technicalPositive, sentimentPositive].filter(Boolean).length;
+  const availableSignals = [fundamentalPositive !== null, technicalPositive !== null, sentimentPositive !== null].filter(Boolean).length;
 
   if (positiveSignals >= 3 || (positiveSignals >= 2 && availableSignals >= 2)) {
     return {
@@ -253,18 +254,7 @@ export default function DashboardPage() {
     setFocusedTicker(ticker);
     setModalView(null);
     setStatus('loading');
-
-    const fallbackFundamental = FUNDAMENTAL_PROFILES[ticker];
-    setAnalysis({
-      ticker,
-      fundamental: fallbackFundamental,
-      technical: null,
-      sentiment: null,
-      fundamentalError: null,
-      technicalError: null,
-      sentimentError: null,
-      completedAt: null,
-    });
+    setAnalysis(null);
 
     const [fundamentalResult, technicalResult, sentimentResult] = await Promise.allSettled([
       fundamentalApi.analyze({
@@ -284,6 +274,7 @@ export default function DashboardPage() {
       }),
     ]);
 
+    const fallbackFundamental = FUNDAMENTAL_PROFILES[ticker];
     const nextAnalysis: CombinedAnalysisResult = {
       ticker,
       fundamental:
@@ -305,7 +296,7 @@ export default function DashboardPage() {
   const compositeView = useMemo(() => buildCompositeView(analysis), [analysis]);
   const technicalStats = useMemo(() => getTechnicalForecastStats(analysis?.technical ?? null), [analysis?.technical]);
   const fundamentalGap = useMemo(
-    () => (analysis ? getFundamentalGap(analysis.fundamental) : null),
+    () => (analysis && !analysis.fundamentalError ? getFundamentalGap(analysis.fundamental) : null),
     [analysis]
   );
 
@@ -627,11 +618,12 @@ export default function DashboardPage() {
               />
             </div>
 
-            {(analysis.technicalError || analysis.sentimentError) && (
+            {(analysis.fundamentalError || analysis.technicalError || analysis.sentimentError) && (
               <Card className="border border-amber-200 bg-amber-50/85" variant="bordered" padding="none">
                 <CardContent className="px-6 py-4 text-sm text-amber-950">
-                  {analysis.technicalError && <p>Technical: {analysis.technicalError}</p>}
-                  {analysis.sentimentError && <p className={cn(analysis.technicalError && 'mt-1')}>Sentiment: {analysis.sentimentError}</p>}
+                  {analysis.fundamentalError && <p>Fundamental: {analysis.fundamentalError}</p>}
+                  {analysis.technicalError && <p className={cn(analysis.fundamentalError && 'mt-1')}>Technical: {analysis.technicalError}</p>}
+                  {analysis.sentimentError && <p className={cn((analysis.fundamentalError || analysis.technicalError) && 'mt-1')}>Sentiment: {analysis.sentimentError}</p>}
                 </CardContent>
               </Card>
             )}
