@@ -502,9 +502,15 @@ export default function DashboardPage() {
                 <OverviewMetric
                   icon={<Wallet size={18} />}
                   label="Fundamental gap"
-                  value={fundamentalGap ? formatSignedPercent(fundamentalGap.deltaPct) : 'N/A'}
-                  detail={analysis.fundamental.balanceSheetLabel}
-                  tone={fundamentalGap?.tone ?? 'default'}
+                  value={
+                    analysis.fundamentalError
+                      ? 'Unavailable'
+                      : fundamentalGap
+                        ? formatSignedPercent(fundamentalGap.deltaPct)
+                        : 'N/A'
+                  }
+                  detail={analysis.fundamentalError ?? analysis.fundamental.balanceSheetLabel}
+                  tone={analysis.fundamentalError ? 'danger' : fundamentalGap?.tone ?? 'default'}
                 />
                 <OverviewMetric
                   icon={technicalStats?.direction === 'down' ? <TrendingDown size={18} /> : <TrendingUp size={18} />}
@@ -534,17 +540,32 @@ export default function DashboardPage() {
             <div className="grid gap-5 xl:grid-cols-3">
               <AnalysisCard
                 title="Fundamental Analysis"
-                tone={fundamentalGap?.tone ?? 'info'}
+                tone={analysis.fundamentalError ? 'danger' : fundamentalGap?.tone ?? 'info'}
                 icon={<ShieldCheck size={18} />}
-                headline={`${analysis.fundamental.companyName} screens at ${formatSignedPercent((analysis.fundamental.fairValueBase - analysis.fundamental.price) / analysis.fundamental.price * 100)} to the base case.`}
-                summary={analysis.fundamental.lensNotes.blend.summary}
+                headline={
+                  analysis.fundamentalError
+                    ? 'Fundamental model signal is unavailable for this run.'
+                    : `${analysis.fundamental.companyName} screens at ${formatSignedPercent((analysis.fundamental.fairValueBase - analysis.fundamental.price) / analysis.fundamental.price * 100)} to the base case.`
+                }
+                summary={
+                  analysis.fundamentalError
+                    ? analysis.fundamentalError
+                    : analysis.fundamental.lensNotes.blend.summary
+                }
                 stats={[
-                  { label: 'Fair value', value: formatMoney(analysis.fundamental.fairValueBase) },
-                  { label: 'Quality', value: `${analysis.fundamental.qualityScore.toFixed(1)} / 10` },
-                  { label: 'Yield', value: analysis.fundamental.shareholderYield },
+                  {
+                    label: 'Fair value',
+                    value: analysis.fundamentalError ? 'N/A' : formatMoney(analysis.fundamental.fairValueBase),
+                  },
+                  {
+                    label: 'Quality',
+                    value: analysis.fundamentalError ? 'N/A' : `${analysis.fundamental.qualityScore.toFixed(1)} / 10`,
+                  },
+                  { label: 'Yield', value: analysis.fundamentalError ? 'N/A' : analysis.fundamental.shareholderYield },
                 ]}
                 actionLabel="Open Fundamental"
                 onOpen={() => setModalView('fundamental')}
+                disabled={Boolean(analysis.fundamentalError)}
               />
 
               <AnalysisCard

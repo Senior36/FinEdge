@@ -1423,9 +1423,6 @@ export default function FundamentalPage({
     } catch (apiError) {
       setStatus('error');
       setError(handleApiError(apiError));
-      if (isCoverageTicker(normalizedTicker)) {
-        setProfile(FUNDAMENTAL_PROFILES[normalizedTicker]);
-      }
     }
   }, []);
 
@@ -1528,7 +1525,7 @@ export default function FundamentalPage({
                   value={ticker}
                   onChange={(event) => setTicker(event.target.value.toUpperCase())}
                   placeholder="AAPL, MSFT, GOOGL, TSLA"
-                  helperText="Uses the latest backend model artifact, with EODHD metrics when configured."
+                  helperText="Requires the latest backend model artifact, with EODHD metrics when configured."
                   leftIcon={<Search size={18} />}
                 />
                 <div className="flex flex-wrap gap-2">
@@ -1620,6 +1617,9 @@ export default function FundamentalPage({
             {error && (
               <div className="rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3 text-danger-900">
                 {error}
+                <p className="mt-2 text-sm">
+                  Static profile data is not used as a substitute for a missing backend model signal.
+                </p>
               </div>
             )}
           </CardContent>

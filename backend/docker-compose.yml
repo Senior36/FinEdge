@@ -26,6 +26,7 @@ services:
       ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
       EODHD_API_KEY: ${EODHD_API_KEY:-}
       FUNDAMENTAL_ARTIFACT_DIR: /app/artifacts/fundamental
+      FUNDAMENTAL_REQUIRE_MODEL_SIGNAL: "true"
     depends_on:
       - postgres
 

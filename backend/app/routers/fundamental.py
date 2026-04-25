@@ -32,7 +32,18 @@ async def analyze_fundamental(
 
 @router.get("/fundamental/health")
 async def health_check():
-    return {"status": "healthy", "service": "fundamental"}
+    artifact_status = fundamental_engine.artifact_status()
+    has_required_artifacts = (
+        artifact_status["signal_file_count"] > 0
+        and artifact_status["latest_signal_rows"] > 0
+        and artifact_status["model_files"]["final_model"]
+    )
+    return {
+        "status": "healthy" if has_required_artifacts else "degraded",
+        "service": "fundamental",
+        "using_real_model_artifacts": has_required_artifacts,
+        **artifact_status,
+    }
 
 
 async def _save_history(

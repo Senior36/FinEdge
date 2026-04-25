@@ -51,6 +51,14 @@ class FundamentalAnalysisEngine:
             raise ValueError("Fundamental analysis currently supports US market data only")
 
         signal = self._find_latest_signal(ticker)
+        if settings.FUNDAMENTAL_REQUIRE_MODEL_SIGNAL and signal is None:
+            artifact_status = self.artifact_status()
+            latest_file = artifact_status.get("latest_signal_file") or "none"
+            raise ValueError(
+                f"No fundamental model signal is available for {ticker}. "
+                f"Docker is configured to require real model artifacts; latest signal file: {latest_file}."
+            )
+
         report_data, report_cached = await self._get_financial_report(ticker, market, db)
 
         if signal is None and report_data is None:
@@ -104,6 +112,27 @@ class FundamentalAnalysisEngine:
         unique_candidates = list(dict.fromkeys(path.resolve() for path in candidates if path.is_file()))
         return sorted(unique_candidates, key=self._artifact_sort_key, reverse=True)
 
+    def artifact_status(self) -> Dict[str, Any]:
+        signal_files = self._signal_candidates()
+        latest_signal = signal_files[0] if signal_files else None
+        configured_root = Path(settings.FUNDAMENTAL_ARTIFACT_DIR)
+        roots = [root for root in self._artifact_roots()]
+
+        return {
+            "artifact_dir": str(configured_root),
+            "artifact_dir_exists": configured_root.exists(),
+            "require_model_signal": settings.FUNDAMENTAL_REQUIRE_MODEL_SIGNAL,
+            "signal_file_count": len(signal_files),
+            "latest_signal_file": str(latest_signal) if latest_signal else None,
+            "latest_signal_date": self._signal_date_from_name(latest_signal.name) if latest_signal else None,
+            "latest_signal_rows": self._count_signal_rows(latest_signal) if latest_signal else 0,
+            "model_files": {
+                "final_model": any((root / "models" / "final_model.pkl").exists() for root in roots),
+                "lgbm_model": any((root / "models" / "lgbm_model.pkl").exists() for root in roots),
+                "sector_models": any((root / "models" / "sector_models").exists() for root in roots),
+            },
+        }
+
     def _artifact_roots(self) -> Iterable[Path]:
         configured = Path(settings.FUNDAMENTAL_ARTIFACT_DIR)
         yield configured
@@ -119,6 +148,14 @@ class FundamentalAnalysisEngine:
         except OSError:
             modified = 0.0
         return signal_date, modified
+
+    def _count_signal_rows(self, csv_path: Path) -> int:
+        try:
+            with csv_path.open("r", newline="", encoding="utf-8") as handle:
+                return sum(1 for _ in csv.DictReader(handle))
+        except Exception as exc:
+            logger.warning(f"Failed to count fundamental signal artifact rows {csv_path}: {exc}")
+            return 0
 
     async def _get_financial_report(
         self,
