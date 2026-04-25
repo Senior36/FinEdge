@@ -15,7 +15,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
-      - ../fundamental_model/fundamental_model/outputs:/app/artifacts/fundamental:ro
+      - ../fundamental_model/outputs:/artifacts/fundamental:ro
     ports:
       - "8000:8000"
     environment:
@@ -25,7 +25,7 @@ services:
       ALPACA_API_KEY: ${ALPACA_API_KEY:-}
       ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
       EODHD_API_KEY: ${EODHD_API_KEY:-}
-      FUNDAMENTAL_ARTIFACT_DIR: /app/artifacts/fundamental
+      FUNDAMENTAL_ARTIFACT_DIR: /artifacts/fundamental
       FUNDAMENTAL_REQUIRE_MODEL_SIGNAL: "true"
     depends_on:
       - postgres

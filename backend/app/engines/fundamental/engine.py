@@ -138,8 +138,9 @@ class FundamentalAnalysisEngine:
         yield configured
 
         repo_root = Path(__file__).resolve().parents[4]
-        yield repo_root / "fundamental_model" / "fundamental_model" / "outputs"
-        yield repo_root / "fundamental_model" / "fundamental_model" / "outputs" / "signals"
+        model_outputs = repo_root / "fundamental_model" / "outputs"
+        yield model_outputs
+        yield model_outputs / "signals"
 
     def _artifact_sort_key(self, path: Path) -> tuple[str, float]:
         signal_date = "99999999" if path.name == "latest_signals.csv" else self._signal_date_from_name(path.name) or ""
