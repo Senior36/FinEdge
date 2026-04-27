@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
+from app.config import settings
+from app.engines.sentimental.artifacts import SentimentalArtifactStore
 from app.engines.sentimental.llm_analyzer import LLMAnalyzer
 from app.integrations.news_api import NewsAPIClient
 from app.services.cache_manager import CacheManager
 from app.schemas.sentimental import (
     SentimentalAnalysisResponse,
-    NewsSentimentBreakdown,
-    NewsArticle
+    NewsSentimentBreakdown
 )
 from app.utils.logger import get_logger
 
@@ -18,8 +19,9 @@ logger = get_logger(__name__)
 
 class SentimentalEngine:
     def __init__(self):
-        self.llm_analyzer = LLMAnalyzer()
-        self.news_client = NewsAPIClient()
+        self.artifact_store = SentimentalArtifactStore()
+        self.llm_analyzer: Optional[LLMAnalyzer] = None
+        self.news_client: Optional[NewsAPIClient] = None
         self.cache_manager = CacheManager()
 
     async def analyze(
@@ -30,7 +32,28 @@ class SentimentalEngine:
         days: int = 7,
         max_articles: int = 10
     ) -> SentimentalAnalysisResponse:
+        ticker = ticker.upper()
+        market = market.upper()
         logger.info(f"Starting sentimental analysis for {ticker} ({market})")
+
+        artifact = self.artifact_store.load_latest(ticker, market)
+        if artifact:
+            logger.info(f"Using sentimental model artifact for {ticker}")
+            return self._build_artifact_response(artifact)
+
+        if settings.SENTIMENTAL_REQUIRE_MODEL_ARTIFACT:
+            artifact_status = self.artifact_status()
+            covered_tickers = artifact_status.get("covered_tickers") or []
+            raise ValueError(
+                f"No sentimental model artifact is available for {ticker}. "
+                f"Docker is configured to require real sentimental model artifacts; "
+                f"covered tickers: {covered_tickers or 'none'}."
+            )
+
+        if not settings.SENTIMENTAL_ALLOW_LIVE_FALLBACK:
+            raise ValueError(
+                f"No sentimental model artifact is available for {ticker}, and live fallback is disabled."
+            )
 
         articles = await self._fetch_articles(ticker, market, days, max_articles)
 
@@ -41,6 +64,9 @@ class SentimentalEngine:
         analyzed_articles = await self.llm_analyzer.analyze_news_batch(articles)
 
         return self._build_response(analyzed_articles, ticker, market, cached=False)
+
+    def artifact_status(self) -> Dict[str, Any]:
+        return self.artifact_store.artifact_status()
 
     async def _fetch_articles(
         self,
@@ -66,6 +92,9 @@ class SentimentalEngine:
 
         company_name = company_names.get(ticker, ticker)
 
+        if self.news_client is None:
+            self.news_client = NewsAPIClient()
+
         articles = await self.news_client.fetch_news(
             company_name=company_name,
             ticker=ticker,
@@ -74,6 +103,16 @@ class SentimentalEngine:
         )
 
         return articles
+
+    @property
+    def llm_analyzer(self) -> LLMAnalyzer:
+        if self._llm_analyzer is None:
+            self._llm_analyzer = LLMAnalyzer()
+        return self._llm_analyzer
+
+    @llm_analyzer.setter
+    def llm_analyzer(self, value: Optional[LLMAnalyzer]) -> None:
+        self._llm_analyzer = value
 
     async def _cache_articles(
         self,
@@ -131,7 +170,43 @@ class SentimentalEngine:
             analysis_summary=self._generate_summary(breakdown, overall_sentiment, trend),
             influential_articles=influential_articles,
             cached=cached,
-            analyzed_at=datetime.now(timezone.utc)
+            analyzed_at=datetime.now(timezone.utc),
+            source="live_fallback"
+        )
+
+    def _build_artifact_response(self, artifact: Dict[str, Any]) -> SentimentalAnalysisResponse:
+        provenance = artifact.get("provenance") or {}
+        analyzed_at = self._parse_artifact_datetime(
+            artifact.get("as_of") or provenance.get("generated_at")
+        )
+
+        news_breakdown = dict(artifact.get("news_breakdown") or {})
+        news_breakdown["provenance"] = {
+            "source": "model_artifact",
+            "source_model": artifact.get("source_model"),
+            "source_model_id": artifact.get("source_model_id"),
+            "strategy": artifact.get("strategy"),
+            **provenance,
+        }
+
+        return SentimentalAnalysisResponse(
+            ticker=str(artifact.get("ticker", "")).upper(),
+            market=str(artifact.get("market", "US")).upper(),
+            overall_sentiment=artifact.get("overall_sentiment", "Neutral"),
+            score=round(max(-1.0, min(self._safe_float(artifact.get("score")), 1.0)), 3),
+            news_breakdown=news_breakdown,
+            trend=artifact.get("trend", "Stable"),
+            confidence=round(max(0.0, min(self._safe_float(artifact.get("confidence")), 1.0)), 2),
+            analysis_summary=artifact.get("analysis_summary", ""),
+            influential_articles=artifact.get("influential_articles") or [],
+            cached=True,
+            analyzed_at=analyzed_at,
+            source="model_artifact",
+            source_model=artifact.get("source_model"),
+            source_model_id=artifact.get("source_model_id"),
+            model_signal=self._safe_float(artifact.get("model_signal")) if artifact.get("model_signal") is not None else None,
+            artifact_version=provenance.get("artifact_version"),
+            artifact_path=artifact.get("_artifact_path"),
         )
 
     def _parse_cached_response(
@@ -164,7 +239,8 @@ class SentimentalEngine:
             analysis_summary=f"No news data available for {ticker}",
             influential_articles=[],
             cached=False,
-            analyzed_at=datetime.now(timezone.utc)
+            analyzed_at=datetime.now(timezone.utc),
+            source="live_fallback"
         )
 
     def _calculate_breakdown(self, articles: List[Dict[str, Any]]) -> NewsSentimentBreakdown:
@@ -283,3 +359,24 @@ class SentimentalEngine:
                 f"sentiment is {sentiment} with an average score of {breakdown.average_score:.3f}. "
                 f"{breakdown.positive_count} positive, {breakdown.negative_count} negative, "
                 f"{breakdown.neutral_count} neutral articles. Trend: {trend}.")
+
+    @staticmethod
+    def _parse_artifact_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    return parsed.replace(tzinfo=timezone.utc)
+                return parsed
+            except ValueError:
+                pass
+        return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _safe_float(value: Any) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0

@@ -35,13 +35,31 @@ export function SentimentResults({ analysis }: SentimentResultsProps) {
                 {analysis.market}
               </Tag>
               <SentimentPill sentiment={analysis.overall_sentiment} />
+              {analysis.source === 'model_artifact' && (
+                <Tag size="sm" variant="success">
+                  Model artifact
+                </Tag>
+              )}
             </div>
 
             <p className="text-text-secondary leading-relaxed">
               {analysis.analysis_summary}
             </p>
 
-            <div className="mt-4 text-sm text-text-secondary">
+            <div className="mt-4 space-y-1 text-sm text-text-secondary">
+              {analysis.source_model && (
+                <div>
+                  <span className="font-medium text-text-primary">Model:</span>{' '}
+                  {analysis.source_model}
+                  {analysis.artifact_version ? ` (${analysis.artifact_version})` : ''}
+                </div>
+              )}
+              {typeof analysis.model_signal === 'number' && (
+                <div>
+                  <span className="font-medium text-text-primary">Model signal:</span>{' '}
+                  {analysis.model_signal.toFixed(3)}
+                </div>
+              )}
               <span className="font-medium text-text-primary">Analyzed:</span>{' '}
               {new Date(analysis.analyzed_at).toLocaleString()}
             </div>
