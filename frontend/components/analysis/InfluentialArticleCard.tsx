@@ -81,15 +81,17 @@ export function InfluentialArticleCard({ articles }: InfluentialArticleCardProps
                   </p>
                   
                   {/* External Link */}
-                  <a
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium mt-3 transition-colors"
-                  >
-                    Read Full Article
-                    <ExternalLink size={16} />
-                  </a>
+                  {article.url && (
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium mt-3 transition-colors"
+                    >
+                      Read Full Article
+                      <ExternalLink size={16} />
+                    </a>
+                  )}
                 </div>
               )}
 

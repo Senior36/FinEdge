@@ -37,6 +37,12 @@ class SentimentalAnalysisResponse(BaseModel):
     influential_articles: List[Dict[str, Any]]
     cached: bool
     analyzed_at: datetime
+    source: Literal["model_artifact", "live_fallback"] = "model_artifact"
+    source_model: Optional[str] = None
+    source_model_id: Optional[str] = None
+    model_signal: Optional[float] = None
+    artifact_version: Optional[str] = None
+    artifact_path: Optional[str] = None
 
 
 class NewsSentimentBreakdown(BaseModel):

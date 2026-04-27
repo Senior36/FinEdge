@@ -37,7 +37,7 @@ export interface TopArticle {
   title: string;
   score: number;
   verdict: 'BUY' | 'SELL' | 'HOLD';
-  source: string;
+  source?: string;
 }
 
 // Influential Article
@@ -46,8 +46,11 @@ export interface InfluentialArticle {
   sentiment: number;
   verdict: 'BUY' | 'SELL' | 'HOLD';
   reasoning: string;
-  source: string;
-  url: string;
+  source?: string;
+  url?: string | null;
+  event_type?: string;
+  materiality?: number;
+  horizon?: string;
 }
 
 // Sentiment Analysis Response
@@ -63,6 +66,12 @@ export interface SentimentalAnalysisResponse {
   influential_articles: InfluentialArticle[];
   cached: boolean;
   analyzed_at: string; // ISO 8601 datetime
+  source?: 'model_artifact' | 'live_fallback';
+  source_model?: string | null;
+  source_model_id?: string | null;
+  model_signal?: number | null;
+  artifact_version?: string | null;
+  artifact_path?: string | null;
 }
 
 // Analysis History Item

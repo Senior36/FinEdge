@@ -43,9 +43,14 @@ async def analyze_sentiment(
         raise HTTPException(status_code=500, detail="Failed to perform sentimental analysis")
 
 
-@router.get("/health")
+@router.get("/sentimental/health")
 async def health_check():
-    return {"status": "healthy", "service": "sentimental"}
+    artifact_status = sentimental_engine.artifact_status()
+    return {
+        "status": "healthy" if artifact_status["using_real_model_artifacts"] else "degraded",
+        "service": "sentimental",
+        **artifact_status,
+    }
 
 
 async def _save_history(

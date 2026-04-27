@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     FUNDAMENTAL_REQUIRE_MODEL_SIGNAL: bool = True
     FUNDAMENTAL_ANALYSIS_CACHE_HOURS: int = 24
     FUNDAMENTAL_REPORT_CACHE_DAYS: int = 7
+    SENTIMENTAL_ARTIFACT_DIR: str = "/artifacts/sentimental"
+    SENTIMENTAL_REQUIRE_MODEL_ARTIFACT: bool = True
+    SENTIMENTAL_DEFAULT_MODEL: str = "gemini31_pro"
+    SENTIMENTAL_MAX_ARTIFACT_AGE_HOURS: int = 72
+    SENTIMENTAL_ALLOW_LIVE_FALLBACK: bool = False
     LLM_MODEL: str = "google/gemini-3-flash-preview"
     DATABASE_URL: str
     SECRET_KEY: str = "change-me"
