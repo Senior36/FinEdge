@@ -5,7 +5,7 @@ import type { TechnicalCandle } from '@/types';
 
 interface TechnicalCandlesChartProps {
   ticker: string;
-  modelVersion: 'v1.1' | 'v1.2';
+  modelVersion: 'final_1d' | 'v1.1' | 'v1.2';
   history: TechnicalCandle[];
   forecast: TechnicalCandle[];
   dataSource: string;
@@ -50,9 +50,9 @@ export function TechnicalCandlesChart({
     <div className="rounded-2xl border border-slate-800 bg-[#05070c] p-4 shadow-2xl">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-white">{ticker} 1m Technical Analysis</h3>
+          <h3 className="text-xl font-semibold text-white">{ticker} 1D Technical Analysis</h3>
           <p className="text-sm text-slate-400">
-            Model {modelVersion} · 60 real bars + 50 forecast bars · Source: {dataSource}
+            Model {modelVersion} / {history.length} real bars + {forecast.length} forecast bars / Source: {dataSource}
           </p>
         </div>
 
@@ -160,7 +160,7 @@ export function TechnicalCandlesChart({
                   fontSize="12"
                   textAnchor="middle"
                 >
-                  {format(new Date(candle.timestamp), 'HH:mm')}
+                  {format(new Date(candle.timestamp), 'MMM d')}
                 </text>
               </g>
             );

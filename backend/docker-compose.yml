@@ -17,6 +17,7 @@ services:
       - .:/app
       - ../fundamental_model/outputs:/artifacts/fundamental:ro
       - ../Sentimental_Model/outputs:/artifacts/sentimental:ro
+      - ../Technical_Model/final_1d_artifacts:/artifacts/technical/final_1d_artifacts:ro
     ports:
       - "8000:8000"
     environment:
@@ -32,6 +33,12 @@ services:
       SENTIMENTAL_REQUIRE_MODEL_ARTIFACT: "true"
       SENTIMENTAL_DEFAULT_MODEL: gemini31_pro
       SENTIMENTAL_ALLOW_LIVE_FALLBACK: "false"
+      TECHNICAL_ARTIFACT_DIR: /artifacts/technical/final_1d_artifacts
+      TECHNICAL_REQUIRE_MODEL_ARTIFACT: "true"
+      TECHNICAL_REQUIRE_ALPACA_LIVE_DATA: "true"
+      TECHNICAL_INFERENCE_WARMUP_BARS: "420"
+      TECHNICAL_TARGET_SCALE_FLOOR: "0.003"
+      TECHNICAL_TARGET_SCALE_CEILING: "0.08"
     depends_on:
       - postgres
 

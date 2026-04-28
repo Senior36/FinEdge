@@ -9,6 +9,15 @@ router = APIRouter(prefix="/api/analyze", tags=["technical"])
 technical_engine = TechnicalAnalysisEngine()
 
 
+@router.get("/technical/health")
+async def technical_health() -> dict:
+    status = technical_engine.artifact_status()
+    return {
+        "status": "healthy" if status["ready_for_live_inference"] else "degraded",
+        **status,
+    }
+
+
 @router.post("/technical", response_model=TechnicalAnalysisResponse)
 async def analyze_technical(request: TechnicalAnalysisRequest) -> TechnicalAnalysisResponse:
     try:

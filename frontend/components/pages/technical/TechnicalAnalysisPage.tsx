@@ -16,9 +16,9 @@ import { cn, handleApiError, technicalApi } from '@/lib';
 import type { TechnicalAnalysisResponse } from '@/types';
 
 const DEFAULT_TICKER = 'MSFT';
-const DEFAULT_MODEL = 'v1.1';
+const DEFAULT_MODEL = 'final_1d';
 
-type ModelVersion = 'v1.1' | 'v1.2';
+type ModelVersion = 'final_1d';
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const MODEL_OPTIONS: Array<{
@@ -27,14 +27,9 @@ const MODEL_OPTIONS: Array<{
   summary: string;
 }> = [
   {
-    value: 'v1.1',
-    label: 'v1.1',
-    summary: 'Balanced trend-following with tighter short-term reversion control.',
-  },
-  {
-    value: 'v1.2',
-    label: 'v1.2',
-    summary: 'Higher momentum persistence with slightly broader intraminute range expansion.',
+    value: 'final_1d',
+    label: 'Final 1D Ensemble',
+    summary: 'Real GRU ensemble with RL policy overlay from the mounted technical artifacts.',
   },
 ];
 
@@ -64,8 +59,8 @@ export default function TechnicalPage() {
       const response = await technicalApi.analyze({
         ticker: normalizedTicker,
         model_version: nextModel,
-        history_bars: 60,
-        forecast_bars: 50,
+        history_bars: 90,
+        forecast_bars: 7,
       });
       setAnalysis(response);
       setStatus('success');
@@ -114,19 +109,19 @@ export default function TechnicalPage() {
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),linear-gradient(135deg,#08111f_0%,#101f3c_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
         <div className="max-w-4xl space-y-4">
           <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-            Intraday Forecasting
+            Daily Forecasting
           </Tag>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Technical Analysis</h1>
             <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-              Pull live 1-minute candles, select a model variant, and project the next 50 bars with
-              a forward-looking price path overlay.
+              Pull daily market candles, run the mounted final technical model, and project the next
+              seven trading days with the ensemble and RL policy.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-            <HeroPill icon={<Clock3 size={14} />} text="Last 60 live candles" />
-            <HeroPill icon={<CandlestickChart size={14} />} text="Next 50 projected candles" />
-            <HeroPill icon={<Sparkles size={14} />} text="Two model variants" />
+            <HeroPill icon={<Clock3 size={14} />} text="Last 90 daily candles" />
+            <HeroPill icon={<CandlestickChart size={14} />} text="Next 7 trading days" />
+            <HeroPill icon={<Sparkles size={14} />} text="Real model artifacts" />
           </div>
         </div>
       </div>
@@ -137,7 +132,7 @@ export default function TechnicalPage() {
             <div>
               <CardTitle className="text-2xl">Run Technical Analysis</CardTitle>
               <p className="mt-1 text-sm text-text-secondary">
-                Live intraday bars with forward price-path projection.
+                Live daily bars with real artifact-backed price-path projection.
               </p>
             </div>
             <Tag variant="neutral" className="self-start md:self-auto">
@@ -152,13 +147,13 @@ export default function TechnicalPage() {
               value={ticker}
               onChange={(event) => setTicker(event.target.value.toUpperCase())}
               placeholder="MSFT, AAPL, NVDA"
-              helperText="Uses Alpaca 1-minute bars for live US equity pricing."
+              helperText="Uses daily US equity pricing for the final 1D technical model."
             />
 
             <div className="grid gap-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-text-primary">Model Version</label>
-                <span className="text-xs text-text-secondary">Select one forecast profile</span>
+                <span className="text-xs text-text-secondary">Docker-mounted artifact bundle</span>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {MODEL_OPTIONS.map((option) => {
@@ -204,16 +199,16 @@ export default function TechnicalPage() {
                     Generating outlook for {lastSubmittedTicker}
                   </p>
                   <span className="text-xs text-text-secondary">
-                    Fetching 1-minute bars and producing 50 projected candles
+                    Fetching daily bars and producing 7 projected candles
                   </span>
                 </div>
               </div>
               <div className="px-4 py-4">
                 <div className="h-2 rounded-full bg-slate-200 progress-indeterminate" />
                 <div className="mt-3 grid gap-3 text-xs text-text-secondary md:grid-cols-3">
-                  <ProgressStep label="1. Market data" description="Pulling the latest 60 one-minute candles." />
-                  <ProgressStep label="2. Model inference" description={`Running ${selectedModel.label} forecast synthesis.`} />
-                  <ProgressStep label="3. Chart overlay" description="Projecting 50 forward candles on the chart." />
+                  <ProgressStep label="1. Market data" description="Pulling the latest daily candles." />
+                  <ProgressStep label="2. Model inference" description={`Running ${selectedModel.label}.`} />
+                  <ProgressStep label="3. Chart overlay" description="Projecting seven forward trading days on the chart." />
                 </div>
               </div>
             </div>
@@ -252,8 +247,8 @@ export default function TechnicalPage() {
             <MetricCard
               icon={<Database size={18} />}
               label="Data Feed"
-              value={analysis.data_source === 'alpaca' ? 'Alpaca' : 'Fallback feed'}
-              detail={analysis.model_version === 'v1.2' ? 'Momentum-biased profile' : 'Mean-reversion profile'}
+              value={analysis.data_source.includes('alpaca') ? 'Alpaca' : 'Fallback feed'}
+              detail={`${analysis.inference_input_bars} Alpaca bars / ${analysis.regime ?? 'NORMAL'}`}
             />
           </div>
 
