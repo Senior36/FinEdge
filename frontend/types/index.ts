@@ -11,5 +11,8 @@ export * from './technical';
 // Export all fundamental analysis types
 export * from './fundamental';
 
+// Export all ensemble backtest types
+export * from './ensemble';
+
 // Export all auth types
 export * from './auth';

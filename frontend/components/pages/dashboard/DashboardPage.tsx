@@ -264,9 +264,9 @@ export default function DashboardPage() {
       }),
       technicalApi.analyze({
         ticker,
-        model_version: 'v1.1',
-        history_bars: 60,
-        forecast_bars: 50,
+        model_version: 'final_1d',
+        history_bars: 90,
+        forecast_bars: 7,
       }),
       sentimentApi.analyze({
         ticker,
@@ -450,7 +450,7 @@ export default function DashboardPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <ProgressCard
                   title="Technical engine"
-                  detail="Pulling 1-minute candles and forecasting the next 50 bars."
+                  detail="Pulling daily candles and forecasting the next 7 trading days."
                   icon={<CandlestickChart size={18} />}
                 />
                 <ProgressCard
@@ -571,7 +571,7 @@ export default function DashboardPage() {
                 icon={<CandlestickChart size={18} />}
                 headline={
                   technicalStats
-                    ? `${analysis.ticker} is projecting ${formatSignedPercent(technicalStats.projectedMovePct)} over the forward 50-bar path.`
+                    ? `${analysis.ticker} is projecting ${formatSignedPercent(technicalStats.projectedMovePct)} over the forward 7-day path.`
                     : 'Technical analysis is currently unavailable for this run.'
                 }
                 summary={

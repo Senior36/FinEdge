@@ -6,6 +6,8 @@ import type {
   FundamentalAnalysisResponse,
   TechnicalAnalysisRequest,
   TechnicalAnalysisResponse,
+  EnsembleBacktestRequest,
+  EnsembleBacktestResponse,
   AnalysisHistory,
   AuthResponse,
   User,
@@ -50,7 +52,7 @@ apiClient.interceptors.request.use(
  * Handles common error responses
  */
 type ApiErrorResponse = {
-  detail?: string;
+  detail?: string | Array<{ msg?: string; loc?: Array<string | number> }> | unknown;
   message?: string;
 };
 
@@ -113,7 +115,23 @@ export const handleApiError = (error: unknown): string => {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
     const data = error.response?.data;
     if (data?.detail) {
-      return data.detail;
+      if (typeof data.detail === 'string') {
+        return data.detail;
+      }
+
+      if (Array.isArray(data.detail)) {
+        return data.detail
+          .map((item) => {
+            if (item && typeof item === 'object' && 'msg' in item) {
+              const location = 'loc' in item && Array.isArray(item.loc) ? ` (${item.loc.join('.')})` : '';
+              return `${String(item.msg)}${location}`;
+            }
+            return JSON.stringify(item);
+          })
+          .join(' ');
+      }
+
+      return 'The request was rejected by the API. Please check the inputs and try again.';
     }
     if (data?.message) {
       return data.message;
@@ -189,6 +207,20 @@ export const fundamentalApi = {
   ): Promise<FundamentalAnalysisResponse> => {
     const response = await apiClient.post<FundamentalAnalysisResponse>(
       '/analyze/fundamental',
+      request,
+      config
+    );
+    return response.data;
+  },
+};
+
+export const ensembleApi = {
+  backtest: async (
+    request: EnsembleBacktestRequest,
+    config?: InternalAxiosRequestConfig
+  ): Promise<EnsembleBacktestResponse> => {
+    const response = await apiClient.post<EnsembleBacktestResponse>(
+      '/analyze/ensemble/backtest',
       request,
       config
     );
