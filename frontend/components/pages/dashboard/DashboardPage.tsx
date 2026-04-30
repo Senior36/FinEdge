@@ -877,6 +877,7 @@ function TechnicalDetail({ analysis }: { analysis: TechnicalAnalysisResponse }) 
         history={analysis.history_bars}
         forecast={analysis.forecast_bars}
         dataSource={analysis.data_source}
+        timeframe={analysis.timeframe}
       />
     </div>
   );

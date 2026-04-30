@@ -244,7 +244,7 @@ class TechnicalModelRuntime:
 
     async def _fetch_daily_bars(self, ticker: str, required_bars: int) -> Tuple[List[TechnicalCandle], str]:
         end = datetime.now(timezone.utc)
-        calendar_days = max(365, math.ceil(required_bars * 7 / 5) + 30)
+        calendar_days = max(365, math.ceil(required_bars * 8 / 5) + 90)
         start = end - timedelta(days=calendar_days)
 
         if settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
@@ -278,9 +278,9 @@ class TechnicalModelRuntime:
             "start": start.isoformat(),
             "end": end.isoformat(),
             "adjustment": "raw",
-            "feed": "iex",
+            "feed": settings.ALPACA_STOCK_FEED,
             "sort": "asc",
-            "limit": min(max(required_bars + 20, required_bars), 10000),
+            "limit": min(max(required_bars + 250, required_bars), 10000),
         }
         headers = {
             "APCA-API-KEY-ID": settings.ALPACA_API_KEY,

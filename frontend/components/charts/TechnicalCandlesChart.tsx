@@ -5,10 +5,11 @@ import type { TechnicalCandle } from '@/types';
 
 interface TechnicalCandlesChartProps {
   ticker: string;
-  modelVersion: 'final_1d' | 'v1.1' | 'v1.2';
+  modelVersion: 'final_1d' | 'final_1min' | 'v1.1' | 'v1.2';
   history: TechnicalCandle[];
   forecast: TechnicalCandle[];
   dataSource: string;
+  timeframe: '1Min' | '1D';
 }
 
 const VIEWBOX_WIDTH = 1100;
@@ -21,6 +22,7 @@ export function TechnicalCandlesChart({
   history,
   forecast,
   dataSource,
+  timeframe,
 }: TechnicalCandlesChartProps) {
   const candles = [...history, ...forecast];
   const forecastStartIndex = history.length;
@@ -44,13 +46,14 @@ export function TechnicalCandlesChart({
   const xForIndex = (index: number) => MARGIN.left + candleStep * index + candleStep / 2;
   const forecastStartX = xForIndex(Math.max(forecastStartIndex, 0)) - candleStep / 2;
   const gridTicks = Array.from({ length: 5 }, (_, index) => domainMin + (priceRange / 4) * index).reverse();
-  const labelEvery = candles.length > 90 ? 10 : 8;
+  const labelEvery = timeframe === '1Min' ? 12 : candles.length > 90 ? 10 : 8;
+  const labelFormat = timeframe === '1Min' ? 'HH:mm' : 'MMM d';
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-[#05070c] p-4 shadow-2xl">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-white">{ticker} 1D Technical Analysis</h3>
+          <h3 className="text-xl font-semibold text-white">{ticker} {timeframe} Technical Analysis</h3>
           <p className="text-sm text-slate-400">
             Model {modelVersion} / {history.length} real bars + {forecast.length} forecast bars / Source: {dataSource}
           </p>
@@ -160,7 +163,7 @@ export function TechnicalCandlesChart({
                   fontSize="12"
                   textAnchor="middle"
                 >
-                  {format(new Date(candle.timestamp), 'MMM d')}
+                  {format(new Date(candle.timestamp), labelFormat)}
                 </text>
               </g>
             );

@@ -18,18 +18,38 @@ import type { TechnicalAnalysisResponse } from '@/types';
 const DEFAULT_TICKER = 'MSFT';
 const DEFAULT_MODEL = 'final_1d';
 
-type ModelVersion = 'final_1d';
+type ModelVersion = 'final_1d' | 'final_1min';
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const MODEL_OPTIONS: Array<{
   value: ModelVersion;
   label: string;
   summary: string;
+  defaultTicker: string;
+  historyBars: number;
+  forecastBars: number;
+  timeframeLabel: string;
+  helperText: string;
 }> = [
   {
     value: 'final_1d',
     label: 'Final 1D Ensemble',
     summary: 'Real GRU ensemble with RL policy overlay from the mounted technical artifacts.',
+    defaultTicker: 'MSFT',
+    historyBars: 90,
+    forecastBars: 7,
+    timeframeLabel: '1D',
+    helperText: 'Uses daily US equity candles for the final 1D technical model.',
+  },
+  {
+    value: 'final_1min',
+    label: 'Final 1Min Ensemble',
+    summary: 'One-minute artifact bundle for near-term candles, using Alpaca minute data.',
+    defaultTicker: 'BTC/USD',
+    historyBars: 120,
+    forecastBars: 50,
+    timeframeLabel: '1Min',
+    helperText: 'Uses Alpaca one-minute candles. BTC/USD routes through Alpaca crypto data.',
   },
 ];
 
@@ -44,9 +64,10 @@ export default function TechnicalPage() {
 
   const runAnalysis = useCallback(async (nextTicker: string, nextModel: ModelVersion) => {
     const normalizedTicker = nextTicker.trim().toUpperCase();
+    const modelConfig = MODEL_OPTIONS.find((option) => option.value === nextModel) ?? MODEL_OPTIONS[0];
 
     if (!normalizedTicker) {
-      setError('Enter a valid US ticker symbol.');
+      setError('Enter a valid ticker or crypto symbol.');
       setStatus('error');
       return;
     }
@@ -59,8 +80,8 @@ export default function TechnicalPage() {
       const response = await technicalApi.analyze({
         ticker: normalizedTicker,
         model_version: nextModel,
-        history_bars: 90,
-        forecast_bars: 7,
+        history_bars: modelConfig.historyBars,
+        forecast_bars: modelConfig.forecastBars,
       });
       setAnalysis(response);
       setStatus('success');
@@ -103,24 +124,31 @@ export default function TechnicalPage() {
   }, [analysis]);
 
   const selectedModel = MODEL_OPTIONS.find((option) => option.value === modelVersion) ?? MODEL_OPTIONS[0];
+  const selectModel = (nextModel: ModelVersion) => {
+    const option = MODEL_OPTIONS.find((item) => item.value === nextModel) ?? MODEL_OPTIONS[0];
+    setModelVersion(nextModel);
+    if (ticker.trim().toUpperCase() === selectedModel.defaultTicker) {
+      setTicker(option.defaultTicker);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),linear-gradient(135deg,#08111f_0%,#101f3c_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
         <div className="max-w-4xl space-y-4">
           <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-            Daily Forecasting
+            Multi-Timeframe Forecasting
           </Tag>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Technical Analysis</h1>
             <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-              Pull daily market candles, run the mounted final technical model, and project the next
-              seven trading days with the ensemble and RL policy.
+              Choose the daily or one-minute artifact model, fetch the matching candle feed, and project
+              the next candles with the ensemble and RL policy.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-            <HeroPill icon={<Clock3 size={14} />} text="Last 90 daily candles" />
-            <HeroPill icon={<CandlestickChart size={14} />} text="Next 7 trading days" />
+            <HeroPill icon={<Clock3 size={14} />} text="1D and 1Min modes" />
+            <HeroPill icon={<CandlestickChart size={14} />} text="Separate candle requirements" />
             <HeroPill icon={<Sparkles size={14} />} text="Real model artifacts" />
           </div>
         </div>
@@ -132,11 +160,11 @@ export default function TechnicalPage() {
             <div>
               <CardTitle className="text-2xl">Run Technical Analysis</CardTitle>
               <p className="mt-1 text-sm text-text-secondary">
-                Live daily bars with real artifact-backed price-path projection.
+                Pick the model timeframe, then run the matching artifact-backed price-path projection.
               </p>
             </div>
             <Tag variant="neutral" className="self-start md:self-auto">
-              US equities only
+              1D equities / 1Min BTC or equities
             </Tag>
           </div>
         </CardHeader>
@@ -146,8 +174,8 @@ export default function TechnicalPage() {
               label="Ticker"
               value={ticker}
               onChange={(event) => setTicker(event.target.value.toUpperCase())}
-              placeholder="MSFT, AAPL, NVDA"
-              helperText="Uses daily US equity pricing for the final 1D technical model."
+              placeholder={selectedModel.value === 'final_1min' ? 'BTC/USD, MSFT' : 'MSFT, AAPL, NVDA'}
+              helperText={selectedModel.helperText}
             />
 
             <div className="grid gap-3">
@@ -162,7 +190,7 @@ export default function TechnicalPage() {
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setModelVersion(option.value)}
+                      onClick={() => selectModel(option.value)}
                       className={cn(
                         'rounded-2xl border px-4 py-3 text-left transition-all duration-200',
                         selected
@@ -180,6 +208,9 @@ export default function TechnicalPage() {
                         />
                       </div>
                       <p className="mt-2 text-sm leading-5 text-text-secondary">{option.summary}</p>
+                      <p className="mt-2 text-xs font-medium text-primary-700">
+                        {option.historyBars} history candles / {option.forecastBars} forecast candles / {option.timeframeLabel}
+                      </p>
                     </button>
                   );
                 })}
@@ -187,7 +218,7 @@ export default function TechnicalPage() {
             </div>
 
             <Button type="submit" size="lg" fullWidth isLoading={status === 'loading'} className="h-[52px]">
-              Analyze Technicals
+              Analyze {selectedModel.timeframeLabel} Chart
             </Button>
           </form>
 
@@ -199,16 +230,16 @@ export default function TechnicalPage() {
                     Generating outlook for {lastSubmittedTicker}
                   </p>
                   <span className="text-xs text-text-secondary">
-                    Fetching daily bars and producing 7 projected candles
+                    Fetching {selectedModel.timeframeLabel} bars and producing {selectedModel.forecastBars} projected candles
                   </span>
                 </div>
               </div>
               <div className="px-4 py-4">
                 <div className="h-2 rounded-full bg-slate-200 progress-indeterminate" />
                 <div className="mt-3 grid gap-3 text-xs text-text-secondary md:grid-cols-3">
-                  <ProgressStep label="1. Market data" description="Pulling the latest daily candles." />
+                  <ProgressStep label="1. Market data" description={`Pulling the latest ${selectedModel.timeframeLabel} candles.`} />
                   <ProgressStep label="2. Model inference" description={`Running ${selectedModel.label}.`} />
-                  <ProgressStep label="3. Chart overlay" description="Projecting seven forward trading days on the chart." />
+                  <ProgressStep label="3. Chart overlay" description={`Projecting ${selectedModel.forecastBars} forward candles on the chart.`} />
                 </div>
               </div>
             </div>
@@ -258,6 +289,7 @@ export default function TechnicalPage() {
             history={analysis.history_bars}
             forecast={analysis.forecast_bars}
             dataSource={analysis.data_source}
+            timeframe={analysis.timeframe}
           />
         </div>
       )}
