@@ -13,6 +13,7 @@ Sentimental_Model/*
 !Sentimental_Model/export_artifacts.py
 !Sentimental_Model/requirements.txt
 !Sentimental_Model/sentiment_benchmark.py
+!Sentimental_Model/sentimental_trades.txt
 !Sentimental_Model/outputs/
 Sentimental_Model/outputs/*
 !Sentimental_Model/outputs/latest/
