@@ -428,7 +428,11 @@ class MinuteTechnicalModelRuntime:
         turb_q90 = turbulence.rolling(390, min_periods=60).quantile(0.90).shift(1)
         crisis = (atr_pct >= atr_q90.fillna(np.inf)) & (turbulence >= turb_q90.fillna(np.inf))
         elevated = (atr_pct >= atr_q75.fillna(np.inf)) | (turbulence >= turb_q75.fillna(np.inf))
-        return atr_pct.copy().where(False, 0.0).mask(elevated, 0.5).mask(crisis, 1.0)
+        regime = atr_pct.copy()
+        regime.loc[:] = 0.0
+        regime.loc[elevated] = 0.5
+        regime.loc[crisis] = 1.0
+        return regime
 
     def _load_bundles(self) -> Dict[str, MinuteExpertBundle]:
         if self._bundles is not None:
