@@ -10,7 +10,7 @@ export interface TechnicalCandle {
 
 export interface TechnicalAnalysisRequest {
   ticker: string;
-  model_version: 'final_1d' | 'v1.1' | 'v1.2';
+  model_version: 'final_1d' | 'final_1min' | 'v1.1' | 'v1.2';
   history_bars?: number;
   forecast_bars?: number;
 }
@@ -18,7 +18,7 @@ export interface TechnicalAnalysisRequest {
 export interface TechnicalAnalysisResponse {
   ticker: string;
   timeframe: '1Min' | '1D';
-  model_version: 'final_1d' | 'v1.1' | 'v1.2';
+  model_version: 'final_1d' | 'final_1min' | 'v1.1' | 'v1.2';
   source: 'model_artifact' | 'synthetic_fallback';
   source_model?: string | null;
   artifact_version?: string | null;

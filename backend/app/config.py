@@ -12,7 +12,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str
     ALPACA_API_KEY: str | None = None
     ALPACA_SECRET_KEY: str | None = None
+    ALPACA_API_SECRET: str | None = None
+    APCA_API_KEY_ID: str | None = None
+    APCA_API_SECRET_KEY: str | None = None
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
+    ALPACA_STOCK_FEED: str = "iex"
     EODHD_API_KEY: str | None = None
     EODHD_BASE_URL: str = "https://eodhd.com/api"
     FUNDAMENTAL_ARTIFACT_DIR: str = "/app/artifacts/fundamental"
@@ -25,9 +29,11 @@ class Settings(BaseSettings):
     SENTIMENTAL_MAX_ARTIFACT_AGE_HOURS: int = 72
     SENTIMENTAL_ALLOW_LIVE_FALLBACK: bool = False
     TECHNICAL_ARTIFACT_DIR: str = "/artifacts/technical/final_1d_artifacts"
+    TECHNICAL_INTRADAY_ARTIFACT_DIR: str = "/artifacts/technical/final_artifacts"
     TECHNICAL_REQUIRE_MODEL_ARTIFACT: bool = True
     TECHNICAL_REQUIRE_ALPACA_LIVE_DATA: bool = True
     TECHNICAL_INFERENCE_WARMUP_BARS: int = 420
+    TECHNICAL_INTRADAY_WARMUP_BARS: int = 390
     TECHNICAL_TARGET_SCALE_FLOOR: float = 0.003
     TECHNICAL_TARGET_SCALE_CEILING: float = 0.08
     LLM_MODEL: str = "google/gemini-3-flash-preview"

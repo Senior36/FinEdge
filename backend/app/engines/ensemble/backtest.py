@@ -51,6 +51,7 @@ class SignalRow:
 class EnsembleBacktestEngine:
     def __init__(self, repo_root: Path | None = None) -> None:
         self.repo_root = repo_root or Path(__file__).resolve().parents[4]
+        self.use_env_artifacts = repo_root is None
 
     async def backtest(self, request: EnsembleBacktestRequest) -> EnsembleBacktestResponse:
         ticker = request.ticker.upper().strip()
@@ -171,34 +172,35 @@ class EnsembleBacktestEngine:
         if csv_rows:
             return csv_rows
 
-        text_path = self.repo_root / "Sentimental_Model" / "sentimental_trades.txt"
-        if not text_path.exists():
-            warnings.append(f"Sentimental trade log not found: {text_path}")
+        rows: list[SignalRow] = []
+        text_sources = self._sentimental_text_sources()
+        if not text_sources:
+            warnings.append("Sentimental trade log not found.")
             return []
 
-        rows: list[SignalRow] = []
-        for line in text_path.read_text(encoding="utf-8").splitlines():
-            match = SENTIMENT_TEXT_ROW.match(line)
-            if not match:
-                continue
-            target = self._safe_float(match.group("target"))
-            signal = self._safe_float(match.group("signal"))
-            if target is None:
-                continue
-            rows.append(
-                SignalRow(
-                    date=date.fromisoformat(match.group("date")),
-                    ticker=ticker,
-                    model="sentimental",
-                    raw_signal=f"{signal:.6f}" if signal is not None else match.group("signal"),
-                    normalized_score=self._score_from_exposure(target, max_exposure),
-                    confidence=1.0,
-                    signal_label=match.group("action"),
-                    source=str(text_path),
+        for text_path in text_sources:
+            for line in text_path.read_text(encoding="utf-8").splitlines():
+                match = SENTIMENT_TEXT_ROW.match(line)
+                if not match:
+                    continue
+                target = self._safe_float(match.group("target"))
+                signal = self._safe_float(match.group("signal"))
+                if target is None:
+                    continue
+                rows.append(
+                    SignalRow(
+                        date=date.fromisoformat(match.group("date")),
+                        ticker=ticker,
+                        model="sentimental",
+                        raw_signal=f"{signal:.6f}" if signal is not None else match.group("signal"),
+                        normalized_score=self._score_from_exposure(target, max_exposure),
+                        confidence=1.0,
+                        signal_label=match.group("action"),
+                        source=str(text_path),
+                    )
                 )
-            )
         if not rows:
-            warnings.append(f"Sentimental trade log had no parseable rows: {text_path}")
+            warnings.append(f"Sentimental trade log had no parseable rows: {', '.join(str(path) for path in text_sources)}")
         return rows
 
     def load_fundamental_signals(self, ticker: str, warnings: list[str]) -> list[SignalRow]:
@@ -442,6 +444,10 @@ class EnsembleBacktestEngine:
         )
 
     async def fetch_price_history(self, ticker: str, start: date, end: date) -> dict[date, PricePoint]:
+        local_prices = self.load_local_price_history(ticker, start, end)
+        if local_prices:
+            return local_prices
+
         import httpx
 
         period1 = int(datetime.combine(start - timedelta(days=35), time.min, tzinfo=timezone.utc).timestamp())
@@ -473,21 +479,60 @@ class EnsembleBacktestEngine:
                 prices[point_date] = PricePoint(date=point_date, close=float(close))
         return prices
 
+    def load_local_price_history(self, ticker: str, start: date, end: date) -> dict[date, PricePoint]:
+        for root in self._price_history_roots():
+            path = root / f"{ticker}.csv"
+            if not path.exists():
+                continue
+            prices: dict[date, PricePoint] = {}
+            try:
+                with path.open("r", newline="", encoding="utf-8-sig") as handle:
+                    reader = csv.DictReader(handle)
+                    for row in reader:
+                        point_date = self._parse_date(row.get("Date") or row.get("date") or row.get("timestamp"))
+                        close = self._first_float(row, ["Close", "close", "adj_close", "Adj Close"])
+                        if point_date is None or close is None or not start <= point_date <= end:
+                            continue
+                        prices[point_date] = PricePoint(date=point_date, close=close)
+            except Exception:
+                continue
+            if prices:
+                return prices
+        return {}
+
+    def _price_history_roots(self) -> list[Path]:
+        roots: list[Path] = []
+        if self.use_env_artifacts:
+            roots.append(Path(os.getenv("PRICE_HISTORY_DIR", "/artifacts/prices")))
+        roots.append(self.repo_root / "fundamental_model" / "data" / "raw" / "prices")
+        return [root for root in roots if root.exists()]
+
     def _sentimental_sources(self, ticker: str) -> list[Path]:
         sources = self._sentimental_csv_sources(ticker)
-        text_path = self.repo_root / "Sentimental_Model" / "sentimental_trades.txt"
-        if text_path.exists():
-            sources.append(text_path)
+        sources.extend(self._sentimental_text_sources())
         return sorted(dict.fromkeys(sources))
 
     def _sentimental_csv_sources(self, ticker: str) -> list[Path]:
-        data_dir = self.repo_root / "Sentimental_Model" / "data"
-        if not data_dir.exists():
-            return []
-        exact = data_dir / f"test_trades_ctx1y_allocator_{ticker}.csv"
-        sources = [exact] if exact.exists() else []
-        sources.extend(path for path in data_dir.glob(f"*trades*{ticker}*.csv") if path.exists() and path not in sources)
+        roots: list[Path] = []
+        if self.use_env_artifacts:
+            roots.append(Path(os.getenv("SENTIMENTAL_BACKTEST_DIR", "/artifacts/sentimental")))
+        roots.append(self.repo_root / "Sentimental_Model" / "data")
+        sources: list[Path] = []
+        for data_dir in roots:
+            if not data_dir.exists():
+                continue
+            exact = data_dir / f"test_trades_ctx1y_allocator_{ticker}.csv"
+            if exact.exists():
+                sources.append(exact)
+            sources.extend(path for path in data_dir.glob(f"*trades*{ticker}*.csv") if path.exists() and path not in sources)
         return sorted(sources)
+
+    def _sentimental_text_sources(self) -> list[Path]:
+        sources: list[Path] = []
+        if self.use_env_artifacts:
+            sources.append(Path(os.getenv("SENTIMENTAL_TRADE_LOG", "/artifacts/sentimental/sentimental_trades.txt")))
+        sources.append(self.repo_root / "Sentimental_Model" / "sentimental_trades.txt")
+        return [path for path in dict.fromkeys(sources) if path.exists()]
 
     def _read_sentimental_csv(self, path: Path, ticker: str, max_exposure: float) -> list[SignalRow]:
         rows: list[SignalRow] = []
@@ -517,11 +562,15 @@ class EnsembleBacktestEngine:
         return rows
 
     def _fundamental_candidates(self) -> list[Path]:
-        roots = [
-            Path(os.getenv("FUNDAMENTAL_ARTIFACT_DIR", "/app/artifacts/fundamental")),
-            self.repo_root / "fundamental_model" / "outputs",
-            self.repo_root / "fundamental_model" / "outputs" / "signals",
-        ]
+        roots: list[Path] = []
+        if self.use_env_artifacts:
+            roots.append(Path(os.getenv("FUNDAMENTAL_ARTIFACT_DIR", "/app/artifacts/fundamental")))
+        roots.extend(
+            [
+                self.repo_root / "fundamental_model" / "outputs",
+                self.repo_root / "fundamental_model" / "outputs" / "signals",
+            ]
+        )
         candidates: list[Path] = []
         for root in roots:
             if not root.exists():
@@ -536,10 +585,10 @@ class EnsembleBacktestEngine:
         return sorted(unique, key=lambda path: (self._date_from_filename(path) or date.min, path.stat().st_mtime))
 
     def _technical_sources(self) -> list[Path]:
-        roots = [
-            Path(os.getenv("TECHNICAL_ARTIFACT_DIR", "/artifacts/technical/final_1d_artifacts")),
-            self.repo_root / "Technical_Model" / "final_1d_artifacts",
-        ]
+        roots: list[Path] = []
+        if self.use_env_artifacts:
+            roots.append(Path(os.getenv("TECHNICAL_ARTIFACT_DIR", "/artifacts/technical/final_1d_artifacts")))
+        roots.append(self.repo_root / "Technical_Model" / "final_1d_artifacts")
         names = ("backtest_signals.csv", "technical_backtest_signals.csv", "rolling_backtest_signals.csv")
         sources: list[Path] = []
         for root in roots:

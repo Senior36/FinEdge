@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 
 
 class TechnicalAnalysisRequest(BaseModel):
-    ticker: str = Field(..., min_length=1, max_length=20, description="US stock ticker symbol")
-    model_version: Literal["final_1d", "v1.1", "v1.2"] = Field("final_1d", description="Technical model selector")
-    history_bars: int = Field(90, ge=30, le=180, description="Number of historical daily candles")
-    forecast_bars: int = Field(7, ge=1, le=7, description="Number of future daily candles")
+    ticker: str = Field(..., min_length=1, max_length=20, description="Stock or crypto symbol")
+    model_version: Literal["final_1d", "final_1min", "v1.1", "v1.2"] = Field("final_1d", description="Technical model selector")
+    history_bars: int = Field(90, ge=30, le=500, description="Number of historical candles")
+    forecast_bars: int = Field(7, ge=1, le=50, description="Number of future candles")
 
 
 class TechnicalCandle(BaseModel):
@@ -24,7 +24,7 @@ class TechnicalCandle(BaseModel):
 class TechnicalAnalysisResponse(BaseModel):
     ticker: str
     timeframe: Literal["1Min", "1D"] = "1D"
-    model_version: Literal["final_1d", "v1.1", "v1.2"]
+    model_version: Literal["final_1d", "final_1min", "v1.1", "v1.2"]
     source: Literal["model_artifact", "synthetic_fallback"] = "model_artifact"
     source_model: Optional[str] = None
     artifact_version: Optional[str] = None
