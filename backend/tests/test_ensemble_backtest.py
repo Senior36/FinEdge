@@ -113,7 +113,7 @@ class EnsembleBacktestTests(unittest.TestCase):
             self.assertEqual(rows[0].signal_label, "BUY")
             self.assertAlmostEqual(rows[0].normalized_score, 0.6)
 
-    def test_aggregates_and_simulates_buy_sell_portfolio(self) -> None:
+    def test_sentiment_buy_scales_with_support_then_sell_exits(self) -> None:
         engine = EnsembleBacktestEngine(repo_root=Path("/unused"))
         request = EnsembleBacktestRequest(
             ticker="GOOGL",
@@ -129,10 +129,10 @@ class EnsembleBacktestTests(unittest.TestCase):
         signals = [
             SignalRow(date(2025, 1, 2), "GOOGL", "fundamental", "BUY", 1.0, 1.0, "BUY", "test"),
             SignalRow(date(2025, 1, 2), "GOOGL", "sentimental", "0.5", 0.5, 1.0, "BUY", "test"),
-            SignalRow(date(2025, 1, 2), "GOOGL", "technical", "0.0", 0.0, 1.0, "HOLD", "test"),
-            SignalRow(date(2025, 1, 3), "GOOGL", "fundamental", "SELL", -1.0, 1.0, "SELL", "test"),
+            SignalRow(date(2025, 1, 2), "GOOGL", "technical", "1.0", 1.0, 1.0, "BUY", "test"),
+            SignalRow(date(2025, 1, 3), "GOOGL", "fundamental", "BUY", 1.0, 1.0, "BUY", "test"),
             SignalRow(date(2025, 1, 3), "GOOGL", "sentimental", "-1.0", -1.0, 1.0, "SELL", "test"),
-            SignalRow(date(2025, 1, 3), "GOOGL", "technical", "-0.5", -0.5, 1.0, "SELL", "test"),
+            SignalRow(date(2025, 1, 3), "GOOGL", "technical", "1.0", 1.0, 1.0, "BUY", "test"),
         ]
 
         decisions = engine.aggregate_decisions(signals, prices, request)
@@ -140,10 +140,52 @@ class EnsembleBacktestTests(unittest.TestCase):
         metrics = engine.build_metrics(equity_curve, trades, decisions, signals, request.initial_capital)
 
         self.assertEqual([decision.action for decision in decisions], ["BUY", "SELL"])
+        self.assertAlmostEqual(decisions[0].target_exposure, 1.0)
+        self.assertAlmostEqual(decisions[0].technical_adjustment, 0.25)
+        self.assertAlmostEqual(decisions[0].fundamental_adjustment, 0.15)
+        self.assertAlmostEqual(decisions[1].target_exposure, 0.0)
         self.assertEqual(len(trades), 2)
         self.assertAlmostEqual(trades[0].shares_after, 10.0)
         self.assertAlmostEqual(metrics.final_value, 1100.0)
         self.assertAlmostEqual(metrics.total_return_pct, 10.0)
+
+    def test_sentiment_buy_negative_support_reduces_exposure(self) -> None:
+        engine = EnsembleBacktestEngine(repo_root=Path("/unused"))
+        request = EnsembleBacktestRequest(ticker="GOOGL")
+        prices = {
+            date(2025, 1, 2): PricePoint(date(2025, 1, 2), 100.0),
+        }
+        signals = [
+            SignalRow(date(2025, 1, 2), "GOOGL", "fundamental", "SELL", -1.0, 1.0, "SELL", "test"),
+            SignalRow(date(2025, 1, 2), "GOOGL", "sentimental", "BUY", 0.8, 1.0, "BUY", "test"),
+            SignalRow(date(2025, 1, 2), "GOOGL", "technical", "SELL", -1.0, 1.0, "SELL", "test"),
+        ]
+
+        decisions = engine.aggregate_decisions(signals, prices, request)
+
+        self.assertEqual(decisions[0].action, "BUY")
+        self.assertAlmostEqual(decisions[0].target_exposure, 0.2)
+        self.assertAlmostEqual(decisions[0].support_score, -0.4)
+
+    def test_sentiment_hold_does_not_trade(self) -> None:
+        engine = EnsembleBacktestEngine(repo_root=Path("/unused"))
+        request = EnsembleBacktestRequest(ticker="GOOGL")
+        prices = {
+            date(2025, 1, 2): PricePoint(date(2025, 1, 2), 100.0),
+        }
+        signals = [
+            SignalRow(date(2025, 1, 2), "GOOGL", "fundamental", "BUY", 1.0, 1.0, "BUY", "test"),
+            SignalRow(date(2025, 1, 2), "GOOGL", "sentimental", "HOLD", 0.0, 1.0, "HOLD", "test"),
+            SignalRow(date(2025, 1, 2), "GOOGL", "technical", "BUY", 1.0, 1.0, "BUY", "test"),
+        ]
+
+        decisions = engine.aggregate_decisions(signals, prices, request)
+        equity_curve, trades = engine.simulate_portfolio(decisions, prices, request)
+
+        self.assertEqual(decisions[0].action, "HOLD")
+        self.assertIsNone(decisions[0].target_exposure)
+        self.assertEqual(trades, [])
+        self.assertAlmostEqual(equity_curve[0].portfolio_value, request.initial_capital)
 
 
 if __name__ == "__main__":

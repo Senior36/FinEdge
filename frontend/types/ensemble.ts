@@ -11,9 +11,13 @@ export interface EnsembleBacktestRequest {
   buy_threshold?: number;
   sell_threshold?: number;
   target_long_exposure?: number;
+  base_long_exposure?: number;
+  technical_exposure_weight?: number;
+  fundamental_exposure_weight?: number;
   sentiment_max_exposure?: number;
   min_trade_value?: number;
   min_model_count?: number;
+  require_sentiment_signal?: boolean;
   allow_technical_proxy?: boolean;
 }
 
@@ -36,6 +40,10 @@ export interface EnsembleDecision {
   target_exposure?: number | null;
   model_count: number;
   model_scores: Record<string, number>;
+  sentiment_action?: EnsembleTradeAction | null;
+  support_score: number;
+  technical_adjustment: number;
+  fundamental_adjustment: number;
 }
 
 export interface EnsembleTrade {

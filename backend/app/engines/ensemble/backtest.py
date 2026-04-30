@@ -325,12 +325,24 @@ class EnsembleBacktestEngine:
         for signal_date, model_rows in sorted(grouped.items()):
             if len(model_rows) < request.min_model_count:
                 continue
+            sentiment_row = model_rows.get("sentimental")
+            if request.require_sentiment_signal and sentiment_row is None:
+                continue
             model_scores = {model: row.normalized_score for model, row in sorted(model_rows.items())}
-            average_score = sum(model_scores.values()) / len(model_scores)
-            action = self._action_from_score(average_score, request.buy_threshold, request.sell_threshold)
+            action = self._sentiment_led_action(sentiment_row, request)
+            technical_adjustment = self._support_adjustment(model_rows.get("technical"), request.technical_exposure_weight)
+            fundamental_adjustment = self._support_adjustment(model_rows.get("fundamental"), request.fundamental_exposure_weight)
+            support_score = self._clip_score(technical_adjustment + fundamental_adjustment)
+            sentiment_score = sentiment_row.normalized_score if sentiment_row is not None else 0.0
+            average_score = self._clip_score(sentiment_score + support_score)
             target_exposure = None
             if action == "BUY":
-                target_exposure = request.target_long_exposure
+                target_exposure = self._bounded(
+                    request.base_long_exposure + technical_adjustment + fundamental_adjustment,
+                    0.0,
+                    request.target_long_exposure,
+                    request.base_long_exposure,
+                )
             elif action == "SELL":
                 target_exposure = 0.0
             decisions.append(
@@ -339,9 +351,13 @@ class EnsembleBacktestEngine:
                     close=prices[signal_date].close,
                     action=action,
                     average_score=round(self._clip_score(average_score), 6),
-                    target_exposure=target_exposure,
+                    target_exposure=round(target_exposure, 6) if target_exposure is not None else None,
                     model_count=len(model_scores),
                     model_scores={model: round(score, 6) for model, score in model_scores.items()},
+                    sentiment_action=action,
+                    support_score=round(support_score, 6),
+                    technical_adjustment=round(technical_adjustment, 6),
+                    fundamental_adjustment=round(fundamental_adjustment, 6),
                 )
             )
         return decisions
@@ -693,6 +709,23 @@ class EnsembleBacktestEngine:
 
     def _score_from_exposure(self, exposure: float, max_exposure: float) -> float:
         return self._clip_score(((exposure / max_exposure) * 2.0) - 1.0)
+
+    def _sentiment_led_action(self, sentiment_row: SignalRow | None, request: EnsembleBacktestRequest) -> TradeAction:
+        if sentiment_row is None:
+            return "HOLD"
+        label = (sentiment_row.signal_label or sentiment_row.raw_signal or "").upper()
+        if "BUY" in label:
+            return "BUY"
+        if "SELL" in label:
+            return "SELL"
+        if "HOLD" in label or "NEUTRAL" in label:
+            return "HOLD"
+        return self._action_from_score(sentiment_row.normalized_score, request.buy_threshold, request.sell_threshold)
+
+    def _support_adjustment(self, row: SignalRow | None, exposure_weight: float) -> float:
+        if row is None:
+            return 0.0
+        return self._clip_score(row.normalized_score) * exposure_weight
 
     @staticmethod
     def _action_from_score(score: float, buy_threshold: float, sell_threshold: float) -> TradeAction:

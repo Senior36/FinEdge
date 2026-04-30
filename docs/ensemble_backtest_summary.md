@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-FinEdge had three separate model paths: fundamental, sentimental, and technical. Each could produce its own signal, but there was no backend pipeline that treated them as one final model. The goal was to build the first ensemble backtest: take historical outputs from the three models, normalize them onto one common score scale, average them, convert the result into BUY/HOLD/SELL decisions, and simulate portfolio performance.
+FinEdge had three separate model paths: fundamental, sentimental, and technical. Each could produce its own signal, but there was no backend pipeline that treated them as one final model. The aggregate model is now sentiment-led: sentimental output chooses BUY/HOLD/SELL, while technical and fundamental outputs support the trade by scaling the target long exposure up or down.
 
 The main challenge was that each model stores history differently. Sentimental has a trade log, fundamental uses CSV signal artifacts, and technical is mainly built around live inference/artifacts rather than a simple historical trade log.
 
@@ -32,15 +32,22 @@ It then normalizes each model to a `-1` to `+1` score:
 - Sentimental: parses the trade log or CSV trade rows and converts target exposure into a normalized score.
 - Technical: reads a backtest signal CSV if present, or uses a clearly marked deterministic price-momentum proxy when no technical backtest artifact exists.
 
-For each date, the engine averages available model scores equally. The average score becomes:
+For each date, the engine starts from the sentimental signal:
 
-- `BUY` when score is at least `+0.15`.
-- `SELL` when score is at most `-0.15`.
-- `HOLD` otherwise.
+- Sentimental `BUY` opens or rebalances a long position.
+- Sentimental `SELL` exits to cash.
+- Sentimental `HOLD` leaves the current position unchanged.
+
+Technical and fundamental scores are supporting modules. When sentiment says `BUY`, the simulator starts from `base_long_exposure` and applies:
+
+- `technical_exposure_weight * technical_score`
+- `fundamental_exposure_weight * fundamental_score`
+
+The result is clipped between `0` and `target_long_exposure`. With the default settings, a sentiment BUY starts at 60% exposure, can scale toward 100% with supportive technical/fundamental signals, and can shrink when either support module is negative. Support modules do not override sentimental SELL or HOLD.
 
 The simulator then runs a long/cash portfolio:
 
-- BUY targets long exposure.
+- BUY targets the sentiment-led scaled long exposure.
 - SELL exits to cash.
 - HOLD keeps the current position.
 - Transaction costs, trades, equity curve, drawdown, Sharpe, win rate, and model coverage are included in the response.
@@ -67,8 +74,10 @@ Backend unit tests cover:
 
 - Sentimental trade-log parsing.
 - Fundamental CSV parsing.
-- Ensemble score averaging.
-- BUY/SELL portfolio simulation.
+- Sentiment-led BUY sizing with supportive technical/fundamental signals.
+- Sentiment-led BUY sizing with negative support.
+- SELL exit behavior in a long/cash portfolio.
+- HOLD behavior with no rebalance.
 
 The focused test command passed:
 

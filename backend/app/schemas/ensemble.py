@@ -20,9 +20,16 @@ class EnsembleBacktestRequest(BaseModel):
     buy_threshold: float = Field(0.15, ge=-1.0, le=1.0)
     sell_threshold: float = Field(-0.15, ge=-1.0, le=1.0)
     target_long_exposure: float = Field(1.0, ge=0.0, le=2.5)
+    base_long_exposure: float = Field(0.6, ge=0.0, le=2.5)
+    technical_exposure_weight: float = Field(0.25, ge=0.0, le=2.5)
+    fundamental_exposure_weight: float = Field(0.15, ge=0.0, le=2.5)
     sentiment_max_exposure: float = Field(2.5, gt=0.0, le=10.0)
     min_trade_value: float = Field(1.0, ge=0.0)
     min_model_count: int = Field(1, ge=1, le=3)
+    require_sentiment_signal: bool = Field(
+        True,
+        description="Require a sentimental signal before creating a sentiment-led aggregate decision.",
+    )
     allow_technical_proxy: bool = Field(
         True,
         description="Use deterministic price-momentum technical proxy if no technical backtest artifact is available.",
@@ -34,6 +41,8 @@ class EnsembleBacktestRequest(BaseModel):
             raise ValueError("sell_threshold must be lower than buy_threshold")
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValueError("start_date must be on or before end_date")
+        if self.base_long_exposure > self.target_long_exposure:
+            raise ValueError("base_long_exposure must be less than or equal to target_long_exposure")
         return self
 
 
@@ -56,6 +65,10 @@ class EnsembleDecision(BaseModel):
     target_exposure: Optional[float] = Field(None, ge=0.0, le=2.5)
     model_count: int = Field(..., ge=1, le=3)
     model_scores: Dict[str, float]
+    sentiment_action: Optional[TradeAction] = None
+    support_score: float = Field(0.0, ge=-1.0, le=1.0)
+    technical_adjustment: float = Field(0.0, ge=-2.5, le=2.5)
+    fundamental_adjustment: float = Field(0.0, ge=-2.5, le=2.5)
 
 
 class EnsembleTrade(BaseModel):

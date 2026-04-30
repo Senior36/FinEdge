@@ -24,7 +24,7 @@ import FundamentalAnalysisPage, {
 } from '@/components/pages/fundamental/FundamentalAnalysisPage';
 import { Button, Card, CardContent, CardHeader, CardTitle, Modal, Tag } from '@/components/ui';
 import { cn, fundamentalApi, handleApiError, sentimentApi, technicalApi } from '@/lib';
-import type { SentimentalAnalysisResponse, TechnicalAnalysisResponse } from '@/types';
+import type { FundamentalAnalysisResponse, SentimentalAnalysisResponse, TechnicalAnalysisResponse } from '@/types';
 
 type DashboardStatus = 'idle' | 'loading' | 'success' | 'error';
 type ModalView = 'fundamental' | 'technical' | 'sentiment' | null;
@@ -45,6 +45,7 @@ interface WatchlistItem {
 interface CombinedAnalysisResult {
   ticker: CoverageTicker;
   fundamental: FundamentalProfile;
+  fundamentalResponse: FundamentalAnalysisResponse | null;
   technical: TechnicalAnalysisResponse | null;
   sentiment: SentimentalAnalysisResponse | null;
   fundamentalError: string | null;
@@ -57,7 +58,25 @@ interface CompositeView {
   title: string;
   tone: SummaryTone;
   summary: string;
+  aggregate: SentimentLedAggregate;
 }
+
+interface SentimentLedAggregate {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  targetExposure: number | null;
+  supportScore: number;
+  technicalAdjustment: number;
+  fundamentalAdjustment: number;
+  technicalScore: number;
+  fundamentalScore: number;
+}
+
+const BASE_LONG_EXPOSURE = 0.6;
+const TARGET_LONG_EXPOSURE = 1.0;
+const TECHNICAL_EXPOSURE_WEIGHT = 0.25;
+const FUNDAMENTAL_EXPOSURE_WEIGHT = 0.15;
+const BUY_THRESHOLD = 0.15;
+const SELL_THRESHOLD = -0.15;
 
 const WATCHLIST: WatchlistItem[] = [
   {
@@ -204,43 +223,148 @@ function getTechnicalForecastStats(analysis: TechnicalAnalysisResponse | null) {
   };
 }
 
+function clipScore(value: number) {
+  return Math.max(-1, Math.min(1, value));
+}
+
+function clipExposure(value: number) {
+  return Math.max(0, Math.min(TARGET_LONG_EXPOSURE, value));
+}
+
+function actionFromScore(score: number): SentimentLedAggregate['action'] {
+  if (score >= BUY_THRESHOLD) {
+    return 'BUY';
+  }
+  if (score <= SELL_THRESHOLD) {
+    return 'SELL';
+  }
+  return 'HOLD';
+}
+
+function getSentimentAction(sentiment: SentimentalAnalysisResponse | null): SentimentLedAggregate['action'] {
+  if (!sentiment) {
+    return 'HOLD';
+  }
+  if (sentiment.overall_sentiment === 'Positive') {
+    return 'BUY';
+  }
+  if (sentiment.overall_sentiment === 'Negative') {
+    return 'SELL';
+  }
+  return actionFromScore(sentiment.score);
+}
+
+function getTechnicalSupportScore(analysis: TechnicalAnalysisResponse | null) {
+  if (!analysis) {
+    return 0;
+  }
+
+  const forecastStats = getTechnicalForecastStats(analysis);
+  const forecastScore = forecastStats ? Math.tanh((forecastStats.projectedMovePct / 100) / 0.05) : null;
+  const policyAction = analysis.policy.recommended_position_pct;
+  const policyScore = typeof policyAction === 'number' ? clipScore(policyAction) : null;
+  const availableScores = [forecastScore, policyScore].filter((score): score is number => score !== null);
+
+  if (!availableScores.length) {
+    return 0;
+  }
+  return clipScore(availableScores.reduce((sum, score) => sum + score, 0) / availableScores.length);
+}
+
+function getFundamentalSupportScore(response: FundamentalAnalysisResponse | null, profile: FundamentalProfile) {
+  if (response) {
+    if (response.universe_percentile !== null && response.universe_percentile !== undefined) {
+      return clipScore((response.universe_percentile * 2) - 1);
+    }
+    if (response.model_score !== null && response.model_score !== undefined) {
+      return clipScore((response.model_score * 2) - 1);
+    }
+    if (response.rating === 'BUY') {
+      return 1;
+    }
+    if (response.rating === 'SELL') {
+      return -1;
+    }
+    return 0;
+  }
+
+  return clipScore(((profile.qualityScore / 10) * 2) - 1);
+}
+
+function buildSentimentLedAggregate(result: CombinedAnalysisResult): SentimentLedAggregate {
+  const action = getSentimentAction(result.sentiment);
+  const technicalScore = getTechnicalSupportScore(result.technical);
+  const fundamentalScore = result.fundamentalError
+    ? 0
+    : getFundamentalSupportScore(result.fundamentalResponse, result.fundamental);
+  const technicalAdjustment = technicalScore * TECHNICAL_EXPOSURE_WEIGHT;
+  const fundamentalAdjustment = fundamentalScore * FUNDAMENTAL_EXPOSURE_WEIGHT;
+  const supportScore = clipScore(technicalAdjustment + fundamentalAdjustment);
+  const targetExposure =
+    action === 'BUY'
+      ? clipExposure(BASE_LONG_EXPOSURE + technicalAdjustment + fundamentalAdjustment)
+      : action === 'SELL'
+        ? 0
+        : null;
+
+  return {
+    action,
+    targetExposure,
+    supportScore,
+    technicalAdjustment,
+    fundamentalAdjustment,
+    technicalScore,
+    fundamentalScore,
+  };
+}
+
+function formatExposure(value: number | null) {
+  return value === null ? 'No rebalance' : `${(value * 100).toFixed(0)}%`;
+}
+
+function aggregateDetail(aggregate: SentimentLedAggregate) {
+  if (aggregate.action === 'SELL') {
+    return 'Sentiment leads with SELL, so the aggregate exits to cash.';
+  }
+  if (aggregate.action === 'HOLD') {
+    return 'Sentiment is not directional enough, so support modules do not force a trade.';
+  }
+
+  const technicalText = aggregate.technicalAdjustment >= 0 ? 'technical supports' : 'technical reduces';
+  const fundamentalText = aggregate.fundamentalAdjustment >= 0 ? 'fundamentals support' : 'fundamentals reduce';
+  return `Sentiment leads with BUY; ${technicalText} size and ${fundamentalText} size.`;
+}
+
 function buildCompositeView(result: CombinedAnalysisResult | null): CompositeView | null {
   if (!result) {
     return null;
   }
 
-  const fundamentalGap = result.fundamentalError ? null : getFundamentalGap(result.fundamental);
-  const technicalStats = getTechnicalForecastStats(result.technical);
-  const fundamentalPositive = fundamentalGap ? fundamentalGap.delta >= 0 : null;
-  const technicalPositive = technicalStats ? technicalStats.projectedMove >= 0 : null;
-  const sentimentPositive = result.sentiment ? result.sentiment.overall_sentiment === 'Positive' : null;
+  const aggregate = buildSentimentLedAggregate(result);
 
-  const positiveSignals = [fundamentalPositive, technicalPositive, sentimentPositive].filter(Boolean).length;
-  const availableSignals = [fundamentalPositive !== null, technicalPositive !== null, sentimentPositive !== null].filter(Boolean).length;
-
-  if (positiveSignals >= 3 || (positiveSignals >= 2 && availableSignals >= 2)) {
+  if (aggregate.action === 'BUY') {
     return {
-      title: 'Constructive combined read',
-      tone: 'success',
-      summary:
-        'The stack leans constructive: intrinsic value is supportive, the near-term price path is favorable, and the news flow is reinforcing the broader thesis.',
+      title: `Aggregate BUY · ${formatExposure(aggregate.targetExposure)}`,
+      tone: aggregate.targetExposure !== null && aggregate.targetExposure >= 0.75 ? 'success' : 'warning',
+      summary: aggregateDetail(aggregate),
+      aggregate,
     };
   }
 
-  if (positiveSignals === 0 && availableSignals >= 2) {
+  if (aggregate.action === 'SELL') {
     return {
-      title: 'Cautious combined read',
+      title: 'Aggregate SELL · Cash',
       tone: 'danger',
-      summary:
-        'The stack leans cautious: the valuation cushion is limited and the faster-moving signals are not yet offering enough support.',
+      summary: aggregateDetail(aggregate),
+      aggregate,
     };
   }
 
   return {
-    title: 'Mixed combined read',
+    title: 'Aggregate HOLD',
     tone: 'warning',
-    summary:
-      'The stack is mixed, which usually means the stock is worth following but still needs a clearer catalyst or a better entry point.',
+    summary: aggregateDetail(aggregate),
+    aggregate,
   };
 }
 
@@ -281,6 +405,7 @@ export default function DashboardPage() {
         fundamentalResult.status === 'fulfilled'
           ? profileFromFundamentalResponse(fundamentalResult.value)
           : fallbackFundamental,
+      fundamentalResponse: fundamentalResult.status === 'fulfilled' ? fundamentalResult.value : null,
       technical: technicalResult.status === 'fulfilled' ? technicalResult.value : null,
       sentiment: sentimentResult.status === 'fulfilled' ? sentimentResult.value : null,
       fundamentalError: fundamentalResult.status === 'rejected' ? handleApiError(fundamentalResult.reason) : null,
@@ -489,7 +614,20 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="grid gap-4 p-6 md:grid-cols-3">
+              <CardContent className="grid gap-4 p-6 md:grid-cols-4">
+                <OverviewMetric
+                  icon={
+                    compositeView?.aggregate.action === 'SELL'
+                      ? <TrendingDown size={18} />
+                      : compositeView?.aggregate.action === 'BUY'
+                        ? <TrendingUp size={18} />
+                        : <Activity size={18} />
+                  }
+                  label="Aggregate action"
+                  value={compositeView ? `${compositeView.aggregate.action} · ${formatExposure(compositeView.aggregate.targetExposure)}` : 'Unavailable'}
+                  detail={compositeView ? `Support score ${compositeView.aggregate.supportScore.toFixed(2)}` : 'Aggregate model unavailable'}
+                  tone={compositeView?.tone ?? 'default'}
+                />
                 <OverviewMetric
                   icon={<Wallet size={18} />}
                   label="Fundamental gap"
