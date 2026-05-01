@@ -29,6 +29,31 @@ PORTFOLIO_STATE = [1.0, 0.0, 1.0, 0.0]
 ACTION_NEUTRAL_BAND = 0.10
 DEFAULT_CRYPTO_SYMBOL = "BTC/USD"
 
+FINAL_WEIGHT_PRIOR_BLEND = 1.0
+FINAL_EXCLUDED_EXPERTS = {"v9_2"}
+FINAL_AGGREGATION_WEIGHT_PRIOR = {
+    "v8_5": 0.10,
+    "v9_1": 0.10,
+    "v9_5": 0.80,
+}
+FINAL_AGGREGATE_SHRINK = 0.70
+FINAL_GUARD_LOOKBACK = 390
+FINAL_SOFT_SWING_Q95_MULT = 1.35
+FINAL_SOFT_SWING_ATR_MULT = 0.55
+FINAL_SOFT_SWING_MIN_MOVE = 0.25
+FINAL_SOFT_SWING_EXCESS_SCALE = 0.15
+FINAL_SOFT_SWING_HARD_MULT = 1.10
+FINAL_SOFT_SWING_EXTREME_SCALE = 0.01
+FINAL_EMPIRICAL_Q95_MULT = 1.15
+FINAL_EMPIRICAL_STEP_BASE_MULT = 1.0
+FINAL_EMPIRICAL_ATR_MULT = 0.55
+FINAL_EMPIRICAL_MIN_MOVE = 0.25
+FINAL_EMPIRICAL_EXCESS_SCALE = 0.12
+FINAL_EMPIRICAL_HARD_MULT = 1.08
+FINAL_EMPIRICAL_EXTREME_SCALE = 0.01
+FINAL_CANDLE_RANGE_Q97_MULT = 1.35
+FINAL_CANDLE_RANGE_MIN_WICK = 0.35
+
 
 @dataclass
 class MinuteExpertBundle:
@@ -156,8 +181,8 @@ class MinuteTechnicalModelRuntime:
 
         feature_frames = self._build_feature_frames(raw_bars, pd, np)
         bundles = self._load_bundles()
-        expected_experts = list(self._load_weights().keys())
-        weights = self._normalize_weights(self._load_weights(), expected_experts)
+        expected_experts = self._active_experts(manifest)
+        weights = self._build_final_inference_weights(self._load_weights(), expected_experts)
 
         expert_paths: Dict[str, Any] = {}
         expert_versions: Dict[str, str] = {}
@@ -183,7 +208,12 @@ class MinuteTechnicalModelRuntime:
             weight = float(weights.get(expert_name, 0.0))
             aggregate_path += weight * path
             aggregate_regime += weight * float(expert_regimes.get(expert_name, 0.0))
-        aggregate_path = self._enforce_candle_validity(aggregate_path, np)
+        aggregate_path = self._postprocess_aggregate_path(
+            aggregate_path,
+            anchor_prev_close,
+            feature_frames["technical"].iloc[-FINAL_GUARD_LOOKBACK:],
+            np,
+        )
 
         policy = self._run_policy(aggregate_path, feature_frames["technical"], aggregate_regime, np, torch)
         timestamps = self._future_minutes(anchor_timestamp, forecast_count, pd)
@@ -627,6 +657,17 @@ class MinuteTechnicalModelRuntime:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return {str(key): float(value) for key, value in payload.items()}
 
+    @staticmethod
+    def _active_experts(manifest: Dict[str, Any]) -> List[str]:
+        experts = [
+            str(expert_name)
+            for expert_name in manifest.get("forecast_models", {}).keys()
+            if str(expert_name) not in FINAL_EXCLUDED_EXPERTS
+        ]
+        if not experts:
+            raise ValueError("No active one-minute forecast experts are available after exclusions.")
+        return experts
+
     def _required_input_bars(self, manifest: Dict[str, Any]) -> int:
         max_lookback = max(int(model.get("lookback", 0)) for model in manifest.get("forecast_models", {}).values())
         warmup = max(int(settings.TECHNICAL_INTRADAY_WARMUP_BARS), 390)
@@ -648,6 +689,19 @@ class MinuteTechnicalModelRuntime:
             return {expert: uniform for expert in experts}
         return {expert: value / total for expert, value in filtered.items()}
 
+    def _build_final_inference_weights(self, saved_weights: Dict[str, float], experts: Sequence[str]) -> Dict[str, float]:
+        saved_norm = self._normalize_weights(saved_weights, experts)
+        prior_raw = {
+            expert: float(FINAL_AGGREGATION_WEIGHT_PRIOR.get(expert, saved_norm.get(expert, 0.0)))
+            for expert in experts
+        }
+        prior_norm = self._normalize_weights(prior_raw, experts)
+        blended = {
+            expert: (1.0 - FINAL_WEIGHT_PRIOR_BLEND) * saved_norm[expert] + FINAL_WEIGHT_PRIOR_BLEND * prior_norm[expert]
+            for expert in experts
+        }
+        return self._normalize_weights(blended, experts)
+
     @staticmethod
     def _returns_to_prices(anchor_prev_close: float, return_seq: Any, np: Any) -> Any:
         prices = np.zeros_like(return_seq, dtype=np.float32)
@@ -664,6 +718,163 @@ class MinuteTechnicalModelRuntime:
         repaired[:, 2] = np.minimum(repaired[:, 2], np.minimum(repaired[:, 0], repaired[:, 3]))
         repaired = np.maximum(repaired, 0.01)
         return repaired
+
+    def _postprocess_aggregate_path(self, path: Any, anchor_prev_close: float, history_slice: Any, np: Any) -> Any:
+        processed = self._shrink_path_to_anchor(path, anchor_prev_close, FINAL_AGGREGATE_SHRINK, np)
+        step_cap = self._compute_soft_swing_guard_cap(history_slice, np)
+        processed = self._soft_cap_step_swings(processed, anchor_prev_close, step_cap, np)
+        horizon_caps = self._compute_empirical_horizon_caps(history_slice, len(processed), step_cap, np)
+        processed = self._empirical_anchor_envelope_cap_path(processed, anchor_prev_close, horizon_caps, np)
+        processed = self._cap_candle_ranges(processed, history_slice, np)
+        return self._enforce_candle_validity(processed, np)
+
+    def _shrink_path_to_anchor(self, path: Any, anchor_prev_close: float, shrink: float, np: Any) -> Any:
+        anchor = float(anchor_prev_close)
+        shrunk = anchor + float(shrink) * (np.asarray(path, dtype=np.float32) - anchor)
+        return self._enforce_candle_validity(shrunk.astype(np.float32), np)
+
+    @staticmethod
+    def _finite_values(values: Any, np: Any) -> Any:
+        array = np.asarray(values, dtype=np.float32)
+        return array[np.isfinite(array)]
+
+    def _compute_soft_swing_guard_cap(self, history_slice: Any, np: Any) -> float:
+        if history_slice is None or history_slice.empty:
+            return float(FINAL_SOFT_SWING_MIN_MOVE)
+
+        close_moves = self._finite_values(history_slice["close"].diff().abs().to_numpy(dtype=np.float32), np)
+        q95_cap = float(np.percentile(close_moves, 95) * FINAL_SOFT_SWING_Q95_MULT) if close_moves.size else 0.0
+
+        atr_cap = 0.0
+        if "atr_14" in history_slice.columns and len(history_slice) > 0:
+            atr_values = self._finite_values(history_slice["atr_14"].to_numpy(dtype=np.float32), np)
+            if atr_values.size:
+                atr_cap = float(atr_values[-1] * FINAL_SOFT_SWING_ATR_MULT)
+
+        return max(float(FINAL_SOFT_SWING_MIN_MOVE), q95_cap, atr_cap)
+
+    @staticmethod
+    def _compress_abs_move(abs_move: float, cap: float, excess_scale: float, hard_mult: float, extreme_scale: float) -> float:
+        if abs_move <= cap:
+            return float(abs_move)
+        hard_cap = cap * float(hard_mult)
+        soft_ceiling = cap + float(excess_scale) * (hard_cap - cap)
+        if abs_move <= hard_cap:
+            return float(cap + float(excess_scale) * (abs_move - cap))
+        return float(soft_ceiling + float(extreme_scale) * (abs_move - hard_cap))
+
+    @staticmethod
+    def _shift_candle_close(candle: Any, new_close: float, np: Any) -> Any:
+        shifted = np.asarray(candle, dtype=np.float32).copy()
+        delta = float(new_close) - float(shifted[3])
+        shifted += delta
+        shifted[3] = float(new_close)
+        return shifted.astype(np.float32)
+
+    def _soft_cap_step_swings(self, path: Any, anchor_prev_close: float, step_move_cap: float, np: Any) -> Any:
+        guarded = np.asarray(path, dtype=np.float32).copy()
+        previous_close = float(anchor_prev_close)
+        cap = float(step_move_cap)
+        if cap <= 0.0:
+            return self._enforce_candle_validity(guarded, np)
+
+        for idx in range(len(guarded)):
+            candle = guarded[idx].copy()
+            close_delta = float(candle[3] - previous_close)
+            abs_delta = abs(close_delta)
+            if abs_delta > cap:
+                compressed_delta = math.copysign(
+                    self._compress_abs_move(
+                        abs_delta,
+                        cap,
+                        FINAL_SOFT_SWING_EXCESS_SCALE,
+                        FINAL_SOFT_SWING_HARD_MULT,
+                        FINAL_SOFT_SWING_EXTREME_SCALE,
+                    ),
+                    close_delta,
+                )
+                candle = self._shift_candle_close(candle, previous_close + compressed_delta, np)
+            guarded[idx] = candle
+            previous_close = float(guarded[idx, 3])
+
+        return self._enforce_candle_validity(guarded, np)
+
+    def _compute_empirical_horizon_caps(self, history_slice: Any, horizon: int, base_step_cap: float, np: Any) -> Any:
+        if history_slice is None or history_slice.empty:
+            return np.full(horizon, float(FINAL_EMPIRICAL_MIN_MOVE), dtype=np.float32)
+
+        closes = self._finite_values(history_slice["close"].to_numpy(dtype=np.float32), np)
+        atr_cap = 0.0
+        if "atr_14" in history_slice.columns:
+            atr_values = self._finite_values(history_slice["atr_14"].to_numpy(dtype=np.float32), np)
+            if atr_values.size:
+                atr_cap = float(atr_values[-1])
+
+        caps = []
+        for step in range(1, int(horizon) + 1):
+            empirical_cap = 0.0
+            if closes.size > step:
+                moves = np.abs(closes[step:] - closes[:-step])
+                finite_moves = self._finite_values(moves, np)
+                if finite_moves.size:
+                    empirical_cap = float(np.percentile(finite_moves, 95) * FINAL_EMPIRICAL_Q95_MULT)
+            step_cap = float(base_step_cap) * FINAL_EMPIRICAL_STEP_BASE_MULT * math.sqrt(step)
+            atr_horizon_cap = atr_cap * FINAL_EMPIRICAL_ATR_MULT * math.sqrt(step)
+            caps.append(max(float(FINAL_EMPIRICAL_MIN_MOVE), empirical_cap, step_cap, atr_horizon_cap))
+        return np.asarray(caps, dtype=np.float32)
+
+    def _empirical_anchor_envelope_cap_path(self, path: Any, anchor_prev_close: float, horizon_caps: Any, np: Any) -> Any:
+        guarded = np.asarray(path, dtype=np.float32).copy()
+        anchor = float(anchor_prev_close)
+        caps = np.asarray(horizon_caps, dtype=np.float32)
+        if caps.size == 0:
+            return self._enforce_candle_validity(guarded, np)
+
+        for idx in range(len(guarded)):
+            candle = guarded[idx].copy()
+            cap = float(caps[min(idx, len(caps) - 1)])
+            close_delta = float(candle[3] - anchor)
+            abs_delta = abs(close_delta)
+            if abs_delta > cap:
+                compressed_delta = math.copysign(
+                    self._compress_abs_move(
+                        abs_delta,
+                        cap,
+                        FINAL_EMPIRICAL_EXCESS_SCALE,
+                        FINAL_EMPIRICAL_HARD_MULT,
+                        FINAL_EMPIRICAL_EXTREME_SCALE,
+                    ),
+                    close_delta,
+                )
+                candle = self._shift_candle_close(candle, anchor + compressed_delta, np)
+            guarded[idx] = candle
+
+        return self._enforce_candle_validity(guarded, np)
+
+    def _cap_candle_ranges(self, path: Any, history_slice: Any, np: Any) -> Any:
+        guarded = np.asarray(path, dtype=np.float32).copy()
+        if history_slice is None or history_slice.empty or not {"high", "low"}.issubset(history_slice.columns):
+            return self._enforce_candle_validity(guarded, np)
+
+        recent_range = self._finite_values((history_slice["high"] - history_slice["low"]).to_numpy(dtype=np.float32), np)
+        if recent_range.size == 0:
+            return self._enforce_candle_validity(guarded, np)
+
+        range_cap = max(
+            float(FINAL_CANDLE_RANGE_MIN_WICK),
+            float(np.percentile(recent_range, 97) * FINAL_CANDLE_RANGE_Q97_MULT),
+        )
+        for idx in range(len(guarded)):
+            candle = guarded[idx].copy()
+            body_high = max(float(candle[0]), float(candle[3]))
+            body_low = min(float(candle[0]), float(candle[3]))
+            candle[1] = min(float(candle[1]), body_high + range_cap)
+            candle[2] = max(float(candle[2]), body_low - range_cap)
+            candle[1] = max(float(candle[1]), float(candle[0]), float(candle[3]))
+            candle[2] = min(float(candle[2]), float(candle[0]), float(candle[3]))
+            guarded[idx] = candle
+
+        return self._enforce_candle_validity(guarded, np)
 
     @staticmethod
     def _select_best_path_by_trend(historical_closes: Any, candidate_paths: Any, bars: int, threshold: float, np: Any) -> Any:
