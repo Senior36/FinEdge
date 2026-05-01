@@ -808,6 +808,7 @@ class MinuteTechnicalModelRuntime:
         processed = self._empirical_anchor_envelope_cap_path(processed, anchor_prev_close, horizon_caps, np)
         processed = self._soft_cap_step_swings(processed, anchor_prev_close, step_cap, np)
         processed = self._cap_candle_ranges(processed, history_slice, np)
+        processed = self._normalize_candle_scale(processed, history_slice, np)
         return self._enforce_candle_validity(processed, np)
 
     def _shrink_path_to_anchor(self, path: Any, anchor_prev_close: float, shrink: float, np: Any) -> Any:
@@ -880,8 +881,15 @@ class MinuteTechnicalModelRuntime:
     @staticmethod
     def _shift_candle_close(candle: Any, new_close: float, np: Any) -> Any:
         shifted = np.asarray(candle, dtype=np.float32).copy()
-        shift = float(new_close) - float(shifted[3])
-        shifted = shifted + shift
+        old_close = float(shifted[3])
+        delta = abs(float(new_close) - old_close)
+        old_range = max(abs(float(shifted[0]) - old_close), abs(float(shifted[1]) - old_close), abs(float(shifted[2]) - old_close), 1e-9)
+        scale = max(0.0, 1.0 - delta / old_range) if old_range > 1e-9 else 1.0
+        scale = max(scale, 0.15)
+        shifted[0] = float(new_close) + scale * (float(shifted[0]) - old_close)
+        shifted[1] = float(new_close) + scale * (float(shifted[1]) - old_close)
+        shifted[2] = float(new_close) + scale * (float(shifted[2]) - old_close)
+        shifted[3] = float(new_close)
         shifted[1] = max(float(shifted[1]), float(shifted[0]), float(shifted[3]))
         shifted[2] = min(float(shifted[2]), float(shifted[0]), float(shifted[3]))
         return shifted.astype(np.float32)
@@ -987,6 +995,61 @@ class MinuteTechnicalModelRuntime:
             guarded[idx] = candle
 
         return self._enforce_candle_validity(guarded, np)
+
+    def _normalize_candle_scale(self, path: Any, history_slice: Any, np: Any) -> Any:
+        """Scale each forecast candle's body and range to match historical 1-min candle dimensions.
+
+        The model generates returns at a scale much larger than actual 1-minute bars.
+        The trajectory guards (soft-cap, envelope) constrain the close path but preserve
+        the original body size because they only shift candles uniformly. This step
+        compresses body (|open-close|) and range (high-low) so forecast candles look
+        like realistic 1-minute bars while keeping the guarded close trajectory intact.
+        """
+        normalized = np.asarray(path, dtype=np.float32).copy()
+        if history_slice is None or history_slice.empty:
+            return self._enforce_candle_validity(normalized, np)
+        if not {"open", "close", "high", "low"}.issubset(history_slice.columns):
+            return self._enforce_candle_validity(normalized, np)
+
+        hist_body = self._finite_values(
+            (history_slice["close"].astype(float) - history_slice["open"].astype(float)).abs().to_numpy(dtype=np.float32), np,
+        )
+        hist_range = self._finite_values(
+            (history_slice["high"].astype(float) - history_slice["low"].astype(float)).to_numpy(dtype=np.float32), np,
+        )
+        if hist_body.size == 0 or hist_range.size == 0:
+            return self._enforce_candle_validity(normalized, np)
+
+        body_cap = float(np.percentile(hist_body, 97)) * 1.35
+        range_cap = float(np.percentile(hist_range, 97)) * 1.35
+        body_cap = max(body_cap, 0.01)
+        range_cap = max(range_cap, body_cap)
+
+        for idx in range(len(normalized)):
+            candle = normalized[idx].copy()
+            o, h, l, c = float(candle[0]), float(candle[1]), float(candle[2]), float(candle[3])
+            body = abs(o - c)
+
+            if body > body_cap:
+                direction = 1.0 if o > c else -1.0
+                o = c + direction * body_cap
+                candle[0] = o
+
+            body_high = max(o, c)
+            body_low = min(o, c)
+            upper_wick = h - body_high
+            lower_wick = body_low - l
+            max_wick = max(0.0, (range_cap - abs(o - c)) / 2.0)
+            if upper_wick > max_wick:
+                candle[1] = body_high + max_wick
+            if lower_wick > max_wick:
+                candle[2] = body_low - max_wick
+
+            candle[1] = max(float(candle[1]), float(candle[0]), float(candle[3]))
+            candle[2] = min(float(candle[2]), float(candle[0]), float(candle[3]))
+            normalized[idx] = candle
+
+        return self._enforce_candle_validity(normalized, np)
 
     def _compute_t1_temporal_cap(self, history_slice: Any, np: Any) -> float:
         if history_slice is None or history_slice.empty:
