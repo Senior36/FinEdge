@@ -53,6 +53,22 @@ FINAL_EMPIRICAL_HARD_MULT = 1.08
 FINAL_EMPIRICAL_EXTREME_SCALE = 0.01
 FINAL_CANDLE_RANGE_Q97_MULT = 1.35
 FINAL_CANDLE_RANGE_MIN_WICK = 0.35
+FINAL_T1_TEMPORAL_Q95_MULT = 1.10
+FINAL_T1_TEMPORAL_ATR_MULT = 0.45
+FINAL_T1_TEMPORAL_MIN_MOVE = 0.22
+FINAL_T1_TEMPORAL_EXCESS_SCALE = 0.10
+FINAL_T1_TEMPORAL_HARD_MULT = 1.08
+FINAL_T1_TEMPORAL_EXTREME_SCALE = 0.00
+FINAL_T1_TEMPORAL_RECAP_EXCESS_SCALE = 0.08
+FINAL_T1_TEMPORAL_RECAP_HARD_MULT = 1.06
+FINAL_T1_TEMPORAL_RECAP_EXTREME_SCALE = 0.00
+FINAL_T1_DIRECTION_VOTE_THRESHOLD = 0.35
+FINAL_T1_DIRECTION_MOMENTUM_BARS = 3
+FINAL_T1_DIRECTION_MOMENTUM_MIN_MOVE = 0.05
+FINAL_T1_DIRECTION_MAX_ABS_DELTA_TO_OVERRIDE = 0.35
+FINAL_T1_DIRECTION_MIN_OVERRIDE_MOVE = 0.10
+FINAL_T1_DIRECTION_MAX_OVERRIDE_MOVE = 0.25
+FINAL_T1_SHIFT_FADE_POWER = 2.0
 
 
 @dataclass
@@ -185,15 +201,19 @@ class MinuteTechnicalModelRuntime:
         weights = self._build_final_inference_weights(self._load_weights(), expected_experts)
 
         expert_paths: Dict[str, Any] = {}
+        previous_expert_paths: Dict[str, Any] = {}
         expert_versions: Dict[str, str] = {}
         expert_regimes: Dict[str, float] = {}
-        anchor_prev_close = float(feature_frames["core"]["close"].iloc[-1])
+        aggregate_anchor_prev_close: Optional[float] = None
+        previous_aggregate_anchor_prev_close: Optional[float] = None
         anchor_timestamp = feature_frames["core"]["timestamp"].iloc[-1]
 
         for expert_name in expected_experts:
             bundle = bundles[expert_name]
             feature_frame = feature_frames[bundle.feature_mode]
             model_input = self._build_latest_input(feature_frame, bundle, pd, np)
+            if aggregate_anchor_prev_close is None:
+                aggregate_anchor_prev_close = float(model_input["anchor_prev_close"])
             regime_name, regime_multiplier, regime_indicator = self._detect_regime_multiplier(model_input["context"], np)
             temperature = float(bundle.inference_config.get("sampling_temperature", 1.5))
             temperature *= self._intraday_temperature(model_input["anchor_timestamp"], pd) / 1.5
@@ -202,16 +222,63 @@ class MinuteTechnicalModelRuntime:
             expert_versions[expert_name] = bundle.version
             expert_regimes[expert_name] = regime_indicator
 
+            if len(feature_frame) >= bundle.lookback + 2:
+                previous_model_input = self._build_anchor_input(feature_frame, bundle, len(feature_frame) - 2, pd, np)
+                if previous_aggregate_anchor_prev_close is None:
+                    previous_aggregate_anchor_prev_close = float(previous_model_input["anchor_prev_close"])
+                previous_regime_multiplier = 1.0
+                if bundle.feature_mode == "regime":
+                    previous_history = feature_frame.iloc[max(0, len(feature_frame) - 1 - 390) : len(feature_frame) - 1].copy()
+                    _, previous_regime_multiplier, _ = self._detect_regime_multiplier(previous_history, np)
+                previous_temperature = float(bundle.inference_config.get("sampling_temperature", 1.5))
+                previous_temperature *= self._intraday_temperature(previous_model_input["anchor_timestamp"], pd) / 1.5
+                previous_expert_paths[expert_name] = self._generate_sampled_path(
+                    bundle,
+                    previous_model_input,
+                    previous_temperature,
+                    previous_regime_multiplier,
+                    np,
+                    torch,
+                )
+
+        if aggregate_anchor_prev_close is None:
+            raise ValueError("No one-minute expert paths were generated.")
+
         aggregate_path = np.zeros_like(next(iter(expert_paths.values())), dtype=np.float32)
         aggregate_regime = 0.0
         for expert_name, path in expert_paths.items():
             weight = float(weights.get(expert_name, 0.0))
             aggregate_path += weight * path
             aggregate_regime += weight * float(expert_regimes.get(expert_name, 0.0))
+        aggregate_guard_history = self._guard_history(feature_frames["technical"], len(feature_frames["technical"]) - 1)
         aggregate_path = self._postprocess_aggregate_path(
             aggregate_path,
-            anchor_prev_close,
-            feature_frames["technical"].iloc[-FINAL_GUARD_LOOKBACK:],
+            aggregate_anchor_prev_close,
+            aggregate_guard_history,
+            np,
+        )
+
+        previous_aggregate_next_close: Optional[float] = None
+        if len(previous_expert_paths) == len(expected_experts) and previous_aggregate_anchor_prev_close is not None:
+            previous_aggregate_path = np.zeros_like(next(iter(previous_expert_paths.values())), dtype=np.float32)
+            for expert_name, path in previous_expert_paths.items():
+                previous_aggregate_path += float(weights.get(expert_name, 0.0)) * path
+            previous_guard_history = self._guard_history(feature_frames["technical"], len(feature_frames["technical"]) - 2)
+            previous_aggregate_path = self._postprocess_aggregate_path(
+                previous_aggregate_path,
+                previous_aggregate_anchor_prev_close,
+                previous_guard_history,
+                np,
+            )
+            previous_aggregate_next_close = float(previous_aggregate_path[0, 3])
+
+        aggregate_path = self._apply_t1_temporal_direction_guard(
+            aggregate_path,
+            aggregate_anchor_prev_close,
+            aggregate_guard_history,
+            expert_paths,
+            weights,
+            previous_aggregate_next_close,
             np,
         )
 
@@ -234,7 +301,7 @@ class MinuteTechnicalModelRuntime:
         return MinuteModelResult(
             history=raw_bars[-history_count:],
             forecast=forecast,
-            latest_price=anchor_prev_close,
+            latest_price=float(feature_frames["core"]["close"].iloc[-1]),
             source_model="final_1min_ensemble_rl",
             artifact_version=str(runtime.get("created_at_utc") or "unknown"),
             artifact_path=str(self.artifact_store.root),
@@ -538,7 +605,13 @@ class MinuteTechnicalModelRuntime:
     def _build_latest_input(self, feature_frame: Any, bundle: MinuteExpertBundle, pd: Any, np: Any) -> Dict[str, Any]:
         if len(feature_frame) < bundle.lookback + 1:
             raise RuntimeError(f"Not enough rows to build latest input for {bundle.name}")
-        anchor_index = len(feature_frame) - 1
+        return self._build_anchor_input(feature_frame, bundle, len(feature_frame) - 1, pd, np)
+
+    def _build_anchor_input(self, feature_frame: Any, bundle: MinuteExpertBundle, anchor_index: int, pd: Any, np: Any) -> Dict[str, Any]:
+        if anchor_index < bundle.lookback:
+            raise RuntimeError(f"Not enough rows to build input for {bundle.name} at anchor {anchor_index}")
+        if anchor_index >= len(feature_frame):
+            raise RuntimeError(f"Anchor index {anchor_index} is outside feature frame for {bundle.name}")
         context = feature_frame.iloc[anchor_index - bundle.lookback : anchor_index].copy()
         feature_block = context.loc[:, bundle.feature_columns].to_numpy(dtype=np.float32)
         impute_frac = float(context["row_imputed"].mean())
@@ -554,6 +627,14 @@ class MinuteTechnicalModelRuntime:
             "historical_closes": context["close"].to_numpy(dtype=np.float32),
             "context": context,
         }
+
+    @staticmethod
+    def _guard_history(feature_frame: Any, anchor_index: int) -> Any:
+        end = max(0, int(anchor_index))
+        start = max(0, end - int(FINAL_GUARD_LOOKBACK))
+        if end <= start:
+            return feature_frame.iloc[max(0, end - 1) : end].copy()
+        return feature_frame.iloc[start:end].copy()
 
     def _generate_sampled_path(
         self,
@@ -725,6 +806,7 @@ class MinuteTechnicalModelRuntime:
         processed = self._soft_cap_step_swings(processed, anchor_prev_close, step_cap, np)
         horizon_caps = self._compute_empirical_horizon_caps(history_slice, len(processed), step_cap, np)
         processed = self._empirical_anchor_envelope_cap_path(processed, anchor_prev_close, horizon_caps, np)
+        processed = self._soft_cap_step_swings(processed, anchor_prev_close, step_cap, np)
         processed = self._cap_candle_ranges(processed, history_slice, np)
         return self._enforce_candle_validity(processed, np)
 
@@ -742,16 +824,48 @@ class MinuteTechnicalModelRuntime:
         if history_slice is None or history_slice.empty:
             return float(FINAL_SOFT_SWING_MIN_MOVE)
 
-        close_moves = self._finite_values(history_slice["close"].diff().abs().to_numpy(dtype=np.float32), np)
+        if "prev_close" in history_slice.columns:
+            prev_close = history_slice["prev_close"].astype(float).copy()
+        else:
+            prev_close = history_slice["close"].shift(1).astype(float)
+            if len(prev_close) > 0:
+                fallback = float(history_slice["open"].iloc[0]) if "open" in history_slice.columns else float(history_slice["close"].iloc[0])
+                prev_close.iloc[0] = fallback
+
+        close_moves = self._finite_values((history_slice["close"].astype(float) - prev_close).abs().to_numpy(dtype=np.float32), np)
         q95_cap = float(np.percentile(close_moves, 95) * FINAL_SOFT_SWING_Q95_MULT) if close_moves.size else 0.0
 
-        atr_cap = 0.0
-        if "atr_14" in history_slice.columns and len(history_slice) > 0:
-            atr_values = self._finite_values(history_slice["atr_14"].to_numpy(dtype=np.float32), np)
-            if atr_values.size:
-                atr_cap = float(atr_values[-1] * FINAL_SOFT_SWING_ATR_MULT)
+        atr_cap = self._latest_atr_value(history_slice, np) * FINAL_SOFT_SWING_ATR_MULT
 
         return max(float(FINAL_SOFT_SWING_MIN_MOVE), q95_cap, atr_cap)
+
+    def _latest_atr_value(self, history_slice: Any, np: Any) -> float:
+        if history_slice is None or history_slice.empty:
+            return 0.0
+        if "atr_14" in history_slice.columns:
+            atr_values = self._finite_values(history_slice["atr_14"].to_numpy(dtype=np.float32), np)
+            if atr_values.size:
+                return float(atr_values[-1])
+        if not {"high", "low", "close"}.issubset(history_slice.columns):
+            return 0.0
+        if "prev_close" in history_slice.columns:
+            prev_close = history_slice["prev_close"].astype(float).copy()
+        else:
+            prev_close = history_slice["close"].shift(1).astype(float)
+            if len(prev_close) > 0:
+                fallback = float(history_slice["open"].iloc[0]) if "open" in history_slice.columns else float(history_slice["close"].iloc[0])
+                prev_close.iloc[0] = fallback
+        true_range = np.maximum.reduce(
+            [
+                (history_slice["high"].astype(float) - history_slice["low"].astype(float)).abs().to_numpy(dtype=np.float32),
+                (history_slice["high"].astype(float) - prev_close).abs().to_numpy(dtype=np.float32),
+                (history_slice["low"].astype(float) - prev_close).abs().to_numpy(dtype=np.float32),
+            ]
+        )
+        finite = self._finite_values(true_range, np)
+        if finite.size == 0:
+            return 0.0
+        return float(finite[-14:].mean())
 
     @staticmethod
     def _compress_abs_move(abs_move: float, cap: float, excess_scale: float, hard_mult: float, extreme_scale: float) -> float:
@@ -766,9 +880,10 @@ class MinuteTechnicalModelRuntime:
     @staticmethod
     def _shift_candle_close(candle: Any, new_close: float, np: Any) -> Any:
         shifted = np.asarray(candle, dtype=np.float32).copy()
-        delta = float(new_close) - float(shifted[3])
-        shifted += delta
-        shifted[3] = float(new_close)
+        shift = float(new_close) - float(shifted[3])
+        shifted = shifted + shift
+        shifted[1] = max(float(shifted[1]), float(shifted[0]), float(shifted[3]))
+        shifted[2] = min(float(shifted[2]), float(shifted[0]), float(shifted[3]))
         return shifted.astype(np.float32)
 
     def _soft_cap_step_swings(self, path: Any, anchor_prev_close: float, step_move_cap: float, np: Any) -> Any:
@@ -804,11 +919,7 @@ class MinuteTechnicalModelRuntime:
             return np.full(horizon, float(FINAL_EMPIRICAL_MIN_MOVE), dtype=np.float32)
 
         closes = self._finite_values(history_slice["close"].to_numpy(dtype=np.float32), np)
-        atr_cap = 0.0
-        if "atr_14" in history_slice.columns:
-            atr_values = self._finite_values(history_slice["atr_14"].to_numpy(dtype=np.float32), np)
-            if atr_values.size:
-                atr_cap = float(atr_values[-1])
+        atr_value = self._latest_atr_value(history_slice, np)
 
         caps = []
         for step in range(1, int(horizon) + 1):
@@ -818,9 +929,10 @@ class MinuteTechnicalModelRuntime:
                 finite_moves = self._finite_values(moves, np)
                 if finite_moves.size:
                     empirical_cap = float(np.percentile(finite_moves, 95) * FINAL_EMPIRICAL_Q95_MULT)
-            step_cap = float(base_step_cap) * FINAL_EMPIRICAL_STEP_BASE_MULT * math.sqrt(step)
-            atr_horizon_cap = atr_cap * FINAL_EMPIRICAL_ATR_MULT * math.sqrt(step)
-            caps.append(max(float(FINAL_EMPIRICAL_MIN_MOVE), empirical_cap, step_cap, atr_horizon_cap))
+            step_root = math.sqrt(float(step))
+            step_cap = float(base_step_cap) * FINAL_EMPIRICAL_STEP_BASE_MULT * step_root
+            atr_horizon_cap = atr_value * FINAL_EMPIRICAL_ATR_MULT * step_root
+            caps.append(max(float(FINAL_EMPIRICAL_MIN_MOVE) * step_root, empirical_cap, step_cap, atr_horizon_cap))
         return np.asarray(caps, dtype=np.float32)
 
     def _empirical_anchor_envelope_cap_path(self, path: Any, anchor_prev_close: float, horizon_caps: Any, np: Any) -> Any:
@@ -875,6 +987,121 @@ class MinuteTechnicalModelRuntime:
             guarded[idx] = candle
 
         return self._enforce_candle_validity(guarded, np)
+
+    def _compute_t1_temporal_cap(self, history_slice: Any, np: Any) -> float:
+        if history_slice is None or history_slice.empty:
+            return float(FINAL_T1_TEMPORAL_MIN_MOVE)
+
+        if "prev_close" in history_slice.columns:
+            prev_close = history_slice["prev_close"].astype(float).copy()
+        else:
+            prev_close = history_slice["close"].shift(1).astype(float)
+            if len(prev_close) > 0:
+                fallback = float(history_slice["open"].iloc[0]) if "open" in history_slice.columns else float(history_slice["close"].iloc[0])
+                prev_close.iloc[0] = fallback
+
+        close_moves = self._finite_values((history_slice["close"].astype(float) - prev_close).abs().to_numpy(dtype=np.float32), np)
+        q95_move = float(np.percentile(close_moves, 95)) if close_moves.size else 0.0
+        atr_value = self._latest_atr_value(history_slice, np)
+        return max(
+            float(FINAL_T1_TEMPORAL_MIN_MOVE),
+            float(FINAL_T1_TEMPORAL_Q95_MULT) * q95_move,
+            float(FINAL_T1_TEMPORAL_ATR_MULT) * atr_value,
+        )
+
+    @staticmethod
+    def _recent_momentum_sign(history_slice: Any, bars: int, min_move: float) -> float:
+        if history_slice is None or history_slice.empty or "close" not in history_slice.columns:
+            return 0.0
+        closes = history_slice["close"].astype(float).replace([math.inf, -math.inf], float("nan")).dropna()
+        if len(closes) <= int(bars):
+            return 0.0
+        delta = float(closes.iloc[-1] - closes.iloc[-1 - int(bars)])
+        if abs(delta) < float(min_move):
+            return 0.0
+        return 1.0 if delta > 0.0 else -1.0
+
+    @staticmethod
+    def _direction_vote_from_expert_paths(expert_paths: Dict[str, Any], anchor_prev_close: float, weight_map: Dict[str, float], np: Any) -> float:
+        vote_score = 0.0
+        anchor = float(anchor_prev_close)
+        for expert_name, expert_path in expert_paths.items():
+            weight = float(weight_map.get(expert_name, 0.0))
+            if weight <= 0.0:
+                continue
+            delta = float(np.asarray(expert_path, dtype=np.float32)[0, 3] - anchor)
+            vote_score += weight * float(np.sign(delta))
+        return float(vote_score)
+
+    def _shift_path_from_first_close(self, path: Any, target_first_close: float, np: Any) -> Any:
+        shifted = np.asarray(path, dtype=np.float32).copy()
+        if len(shifted) == 0:
+            return shifted
+        close_shift = float(target_first_close) - float(shifted[0, 3])
+        if abs(close_shift) <= 1e-12:
+            return self._enforce_candle_validity(shifted.astype(np.float32), np)
+        fade = np.linspace(1.0, 0.0, len(shifted), dtype=np.float32) ** float(FINAL_T1_SHIFT_FADE_POWER)
+        shifted = shifted + close_shift * fade[:, None]
+        return self._enforce_candle_validity(shifted.astype(np.float32), np)
+
+    def _apply_t1_temporal_direction_guard(
+        self,
+        path: Any,
+        anchor_prev_close: float,
+        history_slice: Any,
+        expert_paths: Dict[str, Any],
+        weight_map: Dict[str, float],
+        previous_next_close: Optional[float],
+        np: Any,
+    ) -> Any:
+        guarded = np.asarray(path, dtype=np.float32).copy()
+        target_first_close = float(guarded[0, 3])
+        temporal_cap = self._compute_t1_temporal_cap(history_slice, np)
+
+        if previous_next_close is not None:
+            delta_from_prev = float(target_first_close) - float(previous_next_close)
+            compressed = self._compress_abs_move(
+                abs(delta_from_prev),
+                temporal_cap,
+                FINAL_T1_TEMPORAL_EXCESS_SCALE,
+                FINAL_T1_TEMPORAL_HARD_MULT,
+                FINAL_T1_TEMPORAL_EXTREME_SCALE,
+            )
+            target_first_close = float(previous_next_close) + math.copysign(compressed, delta_from_prev)
+
+        direction_vote = self._direction_vote_from_expert_paths(expert_paths, anchor_prev_close, weight_map, np)
+        vote_sign = float(np.sign(direction_vote))
+        current_delta = float(target_first_close) - float(anchor_prev_close)
+        momentum_sign = self._recent_momentum_sign(
+            history_slice,
+            FINAL_T1_DIRECTION_MOMENTUM_BARS,
+            FINAL_T1_DIRECTION_MOMENTUM_MIN_MOVE,
+        )
+        if (
+            abs(direction_vote) >= float(FINAL_T1_DIRECTION_VOTE_THRESHOLD)
+            and vote_sign != 0.0
+            and np.sign(current_delta) != vote_sign
+            and abs(current_delta) <= float(FINAL_T1_DIRECTION_MAX_ABS_DELTA_TO_OVERRIDE)
+            and momentum_sign == vote_sign
+        ):
+            override_abs = min(
+                max(abs(current_delta) * 0.5, float(FINAL_T1_DIRECTION_MIN_OVERRIDE_MOVE)),
+                float(FINAL_T1_DIRECTION_MAX_OVERRIDE_MOVE),
+            )
+            target_first_close = float(anchor_prev_close) + vote_sign * float(override_abs)
+
+        if previous_next_close is not None:
+            delta_from_prev = float(target_first_close) - float(previous_next_close)
+            compressed = self._compress_abs_move(
+                abs(delta_from_prev),
+                temporal_cap,
+                FINAL_T1_TEMPORAL_RECAP_EXCESS_SCALE,
+                FINAL_T1_TEMPORAL_RECAP_HARD_MULT,
+                FINAL_T1_TEMPORAL_RECAP_EXTREME_SCALE,
+            )
+            target_first_close = float(previous_next_close) + math.copysign(compressed, delta_from_prev)
+
+        return self._shift_path_from_first_close(guarded, target_first_close, np)
 
     @staticmethod
     def _select_best_path_by_trend(historical_closes: Any, candidate_paths: Any, bars: int, threshold: float, np: Any) -> Any:
