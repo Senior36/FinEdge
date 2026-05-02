@@ -47,7 +47,7 @@ const MODEL_OPTIONS: Array<{
     summary: 'One-minute artifact bundle for near-term candles, using Alpaca minute data.',
     defaultTicker: 'BTC/USD',
     historyBars: 120,
-    forecastBars: 50,
+    forecastBars: 15,
     timeframeLabel: '1Min',
     helperText: 'Uses Alpaca one-minute candles. BTC/USD routes through Alpaca crypto data.',
   },

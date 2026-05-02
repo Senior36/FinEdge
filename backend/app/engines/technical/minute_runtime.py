@@ -69,6 +69,7 @@ FINAL_T1_DIRECTION_MAX_ABS_DELTA_TO_OVERRIDE = 0.35
 FINAL_T1_DIRECTION_MIN_OVERRIDE_MOVE = 0.10
 FINAL_T1_DIRECTION_MAX_OVERRIDE_MOVE = 0.25
 FINAL_T1_SHIFT_FADE_POWER = 2.0
+FINAL_MAX_FORECAST_BARS = 15
 
 
 @dataclass
@@ -186,7 +187,7 @@ class MinuteTechnicalModelRuntime:
         manifest = self.artifact_store.load_manifest()
         runtime = manifest.get("runtime", {})
         horizon = int(runtime.get("horizon", 50))
-        forecast_count = max(1, min(int(forecast_bars), horizon))
+        forecast_count = max(1, min(int(forecast_bars), horizon, FINAL_MAX_FORECAST_BARS))
         required_input_bars = self._required_input_bars(manifest)
 
         raw_bars, data_source = await self._fetch_minute_bars(ticker, required_input_bars)
