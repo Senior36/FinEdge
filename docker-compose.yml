@@ -54,7 +54,7 @@ services:
       SENTIMENTAL_TRADE_LOG: /artifacts/sentimental_trades.txt
       SENTIMENTAL_REQUIRE_MODEL_ARTIFACT: "true"
       SENTIMENTAL_DEFAULT_MODEL: gemini31_pro
-      SENTIMENTAL_ALLOW_LIVE_FALLBACK: "false"
+      SENTIMENTAL_ALLOW_LIVE_FALLBACK: "true"
       TECHNICAL_ARTIFACT_DIR: /artifacts/technical/final_1d_artifacts
       TECHNICAL_INTRADAY_ARTIFACT_DIR: /artifacts/technical/final_artifacts
       TECHNICAL_REQUIRE_MODEL_ARTIFACT: "true"

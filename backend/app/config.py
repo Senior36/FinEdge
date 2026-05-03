@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     SENTIMENTAL_REQUIRE_MODEL_ARTIFACT: bool = True
     SENTIMENTAL_DEFAULT_MODEL: str = "gemini31_pro"
     SENTIMENTAL_MAX_ARTIFACT_AGE_HOURS: int = 72
-    SENTIMENTAL_ALLOW_LIVE_FALLBACK: bool = False
+    SENTIMENTAL_ALLOW_LIVE_FALLBACK: bool = True
     TECHNICAL_ARTIFACT_DIR: str = "/artifacts/technical/final_1d_artifacts"
     TECHNICAL_INTRADAY_ARTIFACT_DIR: str = "/artifacts/technical/final_artifacts"
     TECHNICAL_REQUIRE_MODEL_ARTIFACT: bool = True

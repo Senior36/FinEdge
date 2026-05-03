@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
-import { Button, Card, CardHeader, CardTitle, CardContent, Input } from '@/components/ui';
+import { MessageSquareText, Search } from 'lucide-react';
+import { Button, Card, CardHeader, CardTitle, CardContent, Input, Tag } from '@/components/ui';
 import { SentimentResults } from '@/components/analysis';
 import { useSentimentStore } from '@/stores';
 
@@ -37,19 +37,27 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-text-primary">Sentiment Analysis</h1>
-        <p className="text-text-secondary mt-2">
+    <div className="space-y-8">
+      <div className="mx-auto max-w-5xl text-center">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 shadow-card">
+          <MessageSquareText size={14} className="text-primary-600" />
+          News Intelligence
+        </div>
+        <h1 className="mt-6 text-4xl font-extrabold tracking-[-0.04em] text-slate-950 md:text-6xl">Sentiment Analysis</h1>
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500 md:text-base">
           Test the sentiment engine by analyzing a ticker and reviewing article-level scores.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Run Analysis</CardTitle>
+      <Card className="mx-auto max-w-5xl border border-slate-200" variant="bordered" padding="none">
+        <CardHeader className="mb-0 flex flex-col gap-2 border-b border-slate-200 px-6 py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle className="text-xl">Run Analysis</CardTitle>
+            <p className="mt-1 text-sm text-slate-500">Fetch articles, score market tone, and summarize key drivers.</p>
+          </div>
+          <Tag variant="neutral">Real-time articles</Tag>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <form
             onSubmit={onSubmit}
             className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-4 items-end"
@@ -73,7 +81,7 @@ export default function AnalyzePage() {
               <select
                 value={market}
                 onChange={(event) => setMarket(event.target.value as 'US' | 'IN')}
-                className="w-full px-3 py-2 border border-border rounded-button bg-white text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-full border border-border bg-white px-4 py-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="US">US</option>
                 <option value="IN">IN</option>

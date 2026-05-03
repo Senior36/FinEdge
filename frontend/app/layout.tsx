@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { Sidebar } from '@/components/layout';
 import { MainContent } from '@/components/layout';
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-jakarta',
 });
 
 export const metadata: Metadata = {
@@ -21,9 +21,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={jakarta.variable}>
       <body>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex min-h-screen bg-white">
           <Sidebar />
           <MainContent>{children}</MainContent>
         </div>

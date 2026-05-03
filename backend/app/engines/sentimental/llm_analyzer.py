@@ -21,17 +21,26 @@ class LLMAnalyzer:
         title: str,
         body: str
     ) -> Dict[str, Any]:
-        if not body or len(body) < 200:
+        article_text = body or title or ""
+        if len(article_text.strip()) < 30:
             return {
                 "score": 0.0,
                 "verdict": "HOLD",
                 "reasoning": "Insufficient context for analysis.",
-                "confidence": 0.0
+                "confidence": 0.0,
+                "relevance": 0.0,
+                "materiality": 0.0,
+                "event_type": "other",
+                "horizon": "days",
+                "key_drivers": []
             }
 
         system_message = {
             "role": "system",
-            "content": "You are a financial sentiment analyst. Analyze news articles for stock market sentiment and provide a JSON response with these fields: score (number, -1 to 1), verdict (BUY/SELL/HOLD), reasoning (string), confidence (number, 0 to 1)."
+            "content": (
+                "You are an equity research sentiment analyst. Score one news article for the named stock only. "
+                "Return strict JSON with score, verdict, reasoning, confidence, relevance, materiality, event_type, horizon, and key_drivers."
+            )
         }
 
         user_message = {
@@ -40,13 +49,20 @@ class LLMAnalyzer:
 
 Title: {title}
 
-Content: {body[:8000]}
+Content: {article_text[:8000]}
 
-Provide a JSON response with:
-1. score: Sentiment score from -1 (very negative) to 1 (very positive)
-2. verdict: Trading recommendation (BUY, SELL, or HOLD)
-3. reasoning: Brief explanation for verdict
-4. confidence: Confidence level (0 to 1)"""
+Return JSON only:
+{{
+  "score": <number from -1.0 to 1.0>,
+  "verdict": "BUY" | "SELL" | "HOLD",
+  "reasoning": "<brief stock-specific rationale>",
+  "confidence": <number from 0.0 to 1.0>,
+  "relevance": <number from 0.0 to 1.0 measuring how directly this article concerns {ticker}>,
+  "materiality": <number from 0.0 to 1.0 measuring expected market importance>,
+  "event_type": "<earnings|guidance|product|legal|macro|analyst|market|other>",
+  "horizon": "<intraday|days|weeks|months>",
+  "key_drivers": ["<driver 1>", "<driver 2>"]
+}}"""
         }
 
         payload = {
@@ -79,7 +95,7 @@ Provide a JSON response with:
                         content = result_data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
 
                         try:
-                            result = json.loads(content)
+                            result = self._normalise_response(json.loads(self._extract_json(content)))
                             logger.info(f"LLM analysis for {ticker}: {result.get('verdict')}")
                             return result
                         except json.JSONDecodeError:
@@ -97,12 +113,69 @@ Provide a JSON response with:
 
         return self._fallback_response()
 
+    def _extract_json(self, content: str) -> str:
+        text = content.strip()
+        if text.startswith("```"):
+            text = text.strip("`").strip()
+            if text.lower().startswith("json"):
+                text = text[4:].strip()
+
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1]
+        return text
+
+    def _normalise_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        score = self._clamp_float(result.get("score"), -1.0, 1.0, 0.0)
+        confidence = self._clamp_float(result.get("confidence"), 0.0, 1.0, 0.0)
+        relevance = self._clamp_float(result.get("relevance"), 0.0, 1.0, 0.5)
+        materiality = self._clamp_float(result.get("materiality"), 0.0, 1.0, relevance)
+
+        verdict = str(result.get("verdict") or "").upper()
+        if verdict not in {"BUY", "SELL", "HOLD"}:
+            if score > 0.2:
+                verdict = "BUY"
+            elif score < -0.2:
+                verdict = "SELL"
+            else:
+                verdict = "HOLD"
+
+        key_drivers = result.get("key_drivers")
+        if not isinstance(key_drivers, list):
+            key_drivers = []
+
+        return {
+            "score": score,
+            "verdict": verdict,
+            "reasoning": str(result.get("reasoning") or "No rationale returned."),
+            "confidence": confidence,
+            "relevance": relevance,
+            "materiality": materiality,
+            "event_type": str(result.get("event_type") or "other"),
+            "horizon": str(result.get("horizon") or "days"),
+            "key_drivers": [str(driver) for driver in key_drivers[:5]],
+        }
+
+    @staticmethod
+    def _clamp_float(value: Any, minimum: float, maximum: float, default: float) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+        return max(minimum, min(maximum, number))
+
     def _fallback_response(self) -> Dict[str, Any]:
         return {
             "score": 0.0,
             "verdict": "HOLD",
             "reasoning": "Analysis failed due to API limitations.",
-            "confidence": 0.0
+            "confidence": 0.0,
+            "relevance": 0.0,
+            "materiality": 0.0,
+            "event_type": "other",
+            "horizon": "days",
+            "key_drivers": []
         }
 
     async def analyze_news_batch(
@@ -122,7 +195,12 @@ Provide a JSON response with:
                 'sentiment_score': analysis.get('score', 0.0),
                 'verdict': analysis.get('verdict', 'HOLD'),
                 'reasoning': analysis.get('reasoning', ''),
-                'confidence': analysis.get('confidence', 0.0)
+                'confidence': analysis.get('confidence', 0.0),
+                'relevance': analysis.get('relevance', 0.0),
+                'materiality': analysis.get('materiality', 0.0),
+                'event_type': analysis.get('event_type', 'other'),
+                'horizon': analysis.get('horizon', 'days'),
+                'key_drivers': analysis.get('key_drivers', [])
             })
 
         return results

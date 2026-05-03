@@ -32,8 +32,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
 
     // Variant styles
     const variantStyles: Record<string, ClassValue> = {
-      default: 'shadow-card',
-      elevated: 'shadow-card-hover',
+      default: 'border border-slate-200 shadow-card',
+      elevated: 'border border-slate-200 shadow-card-hover',
       bordered: 'border border-border shadow-none',
     };
 

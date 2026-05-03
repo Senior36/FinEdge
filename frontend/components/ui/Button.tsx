@@ -41,11 +41,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     // Base styles
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-button transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-button transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
 
     // Variant styles
     const variantStyles: Record<ButtonVariant, ClassValue> = {
-      primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
+      primary: 'bg-primary-600 text-white shadow-[0_10px_22px_-12px_rgba(37,99,235,0.8)] hover:bg-primary-700 focus:ring-primary-500',
       secondary: 'bg-white text-text-primary border border-border hover:bg-slate-50 focus:ring-primary-500',
       danger: 'bg-danger-500 text-white hover:bg-danger-600 focus:ring-danger-500',
       ghost: 'text-text-primary hover:bg-slate-100 focus:ring-primary-500',
@@ -54,8 +54,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     // Size styles
     const sizeStyles: Record<ButtonSize, ClassValue> = {
       sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2 text-base',
-      lg: 'px-6 py-3 text-lg',
+      md: 'px-5 py-2.5 text-sm',
+      lg: 'px-6 py-3 text-base',
     };
 
     // Width styles

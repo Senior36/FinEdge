@@ -33,7 +33,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
 
     // Base input styles
-    const baseStyles = 'w-full px-3 py-2 border rounded-button transition-all duration-200 focus:outline-none focus:ring-2 focus:border-transparent placeholder:text-text-muted disabled:bg-slate-50 disabled:cursor-not-allowed';
+    const baseStyles = 'w-full px-4 py-3 border rounded-button bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:border-transparent placeholder:text-text-muted disabled:bg-slate-50 disabled:cursor-not-allowed';
 
     // Error state styles
     const errorStyles = error
@@ -41,7 +41,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       : 'border-border focus:ring-primary-500 focus:border-primary-500';
 
     // Icon padding styles
-    const paddingStyles = leftIcon ? 'pl-10' : rightIcon ? 'pr-10' : '';
+    const paddingStyles = leftIcon ? 'pl-11' : rightIcon ? 'pr-11' : '';
 
     const inputStyles = twMerge(
       clsx(baseStyles, errorStyles, paddingStyles, className)

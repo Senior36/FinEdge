@@ -15,8 +15,8 @@ export interface MainContentProps {
 
 export function MainContent({ children, className = '' }: MainContentProps) {
   return (
-    <main className={`flex-1 bg-main-bg min-h-screen overflow-y-auto custom-scrollbar lg:ml-[260px] ${className}`}>
-      <div className="p-8">
+    <main className={`finedge-shell flex-1 min-h-screen overflow-y-auto custom-scrollbar lg:ml-[224px] ${className}`}>
+      <div className="mx-auto w-full max-w-[1420px] px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
         {children}
       </div>
     </main>

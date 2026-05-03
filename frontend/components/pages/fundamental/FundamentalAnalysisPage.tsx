@@ -1456,48 +1456,44 @@ export default function FundamentalPage({
   const shouldShowResults = status === 'success';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {showHero && (
-        <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_32%),linear-gradient(135deg,#08111f_0%,#0f1b35_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
-            <div className="max-w-4xl space-y-4">
-              <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-                Intrinsic Value Workbench
-              </Tag>
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Fundamental Analysis</h1>
-                <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-                  Review valuation, profitability, balance-sheet strength, cash generation, peer positioning,
-                  and filing checkpoints in one investor-grade workspace.
+        <div className="mx-auto max-w-6xl text-center">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 shadow-card">
+            <Landmark size={14} className="text-primary-600" />
+            Intrinsic Value Workbench
+          </div>
+          <div className="mt-6 space-y-3">
+            <h1 className="text-4xl font-extrabold tracking-[-0.04em] text-slate-950 md:text-6xl">Fundamental Analysis</h1>
+            <p className="mx-auto max-w-3xl text-sm leading-6 text-slate-500 md:text-base">
+              Review valuation, profitability, balance-sheet strength, cash generation, peer positioning,
+              and filing checkpoints in one investor-grade workspace.
+            </p>
+          </div>
+          <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs font-bold text-slate-600">
+            <HeroPill icon={<Landmark size={14} />} text="Income statement, balance sheet, and cash flow" />
+            <HeroPill icon={<BarChart3 size={14} />} text="Relative valuation and peer benchmarking" />
+            <HeroPill icon={<FileText size={14} />} text="Moat, management, and filing checkpoints" />
+          </div>
+          <div className="mx-auto mt-7 max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-card">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="eyebrow">Current Coverage</p>
+                <p className="mt-2 text-xl font-extrabold text-slate-950">
+                  {profile.ticker} <span className="text-slate-500">{profile.companyName}</span>
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-                <HeroPill icon={<Landmark size={14} />} text="Income statement, balance sheet, and cash flow" />
-                <HeroPill icon={<BarChart3 size={14} />} text="Relative valuation and peer benchmarking" />
-                <HeroPill icon={<FileText size={14} />} text="Moat, management, and filing checkpoints" />
-              </div>
+              <Tag variant="neutral" className="self-start sm:self-auto">
+                {profile.sector}
+              </Tag>
             </div>
-
-            <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-blue-50/65">Current Coverage</p>
-                  <p className="mt-2 text-xl font-semibold">
-                    {profile.ticker} <span className="text-blue-50/80">{profile.companyName}</span>
-                  </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {profile.spotlightMetrics.map((metric) => (
+                <div key={metric.label} className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3">
+                  <p className="text-xs font-semibold text-slate-500">{metric.label}</p>
+                  <p className="mt-1 text-base font-extrabold text-slate-950">{metric.value}</p>
                 </div>
-                <Tag variant="neutral" className="border border-white/15 bg-white/8 text-blue-50">
-                  {profile.sector}
-                </Tag>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                {profile.spotlightMetrics.map((metric) => (
-                  <div key={metric.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
-                    <p className="text-xs text-blue-50/65">{metric.label}</p>
-                    <p className="mt-1 text-base font-semibold text-white">{metric.value}</p>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1961,7 +1957,7 @@ export default function FundamentalPage({
 
 function HeroPill({ icon, text }: { icon: ReactNode; text: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 backdrop-blur-sm">
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-card">
       {icon}
       <span>{text}</span>
     </div>

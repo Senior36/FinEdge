@@ -36,12 +36,21 @@ class SentimentalEngine:
         market = market.upper()
         logger.info(f"Starting sentimental analysis for {ticker} ({market})")
 
-        artifact = self.artifact_store.load_latest(ticker, market)
+        artifact_error: Optional[ValueError] = None
+        try:
+            artifact = self.artifact_store.load_latest(ticker, market)
+        except ValueError as exc:
+            artifact = None
+            artifact_error = exc
+            if not settings.SENTIMENTAL_ALLOW_LIVE_FALLBACK:
+                raise
+            logger.warning(f"Sentimental artifact unavailable for {ticker}; falling back to live analysis: {exc}")
+
         if artifact:
             logger.info(f"Using sentimental model artifact for {ticker}")
             return self._build_artifact_response(artifact)
 
-        if settings.SENTIMENTAL_REQUIRE_MODEL_ARTIFACT:
+        if settings.SENTIMENTAL_REQUIRE_MODEL_ARTIFACT and not settings.SENTIMENTAL_ALLOW_LIVE_FALLBACK:
             artifact_status = self.artifact_status()
             covered_tickers = artifact_status.get("covered_tickers") or []
             raise ValueError(
@@ -55,6 +64,8 @@ class SentimentalEngine:
                 f"No sentimental model artifact is available for {ticker}, and live fallback is disabled."
             )
 
+        if artifact_error is None:
+            logger.info(f"No sentimental artifact for {ticker}; using live News API/OpenRouter analysis")
         articles = await self._fetch_articles(ticker, market, days, max_articles)
 
         if not articles:
@@ -143,7 +154,11 @@ class SentimentalEngine:
 
         top_articles = sorted(
             articles,
-            key=lambda x: abs(x.get('sentiment_score', 0)),
+            key=lambda x: (
+                abs(self._safe_float(x.get('sentiment_score', 0)))
+                * max(self._safe_float(x.get('confidence', 0.0)), 0.25)
+                * max(self._safe_float(x.get('materiality', x.get('relevance', 0.5))), 0.25)
+            ),
             reverse=True
         )[:5]
 
@@ -154,24 +169,38 @@ class SentimentalEngine:
                 'verdict': a.get('verdict'),
                 'reasoning': a.get('reasoning'),
                 'source': a.get('source'),
-                'url': a.get('url')
+                'url': a.get('url'),
+                'event_type': a.get('event_type'),
+                'materiality': a.get('materiality') or a.get('relevance'),
+                'horizon': a.get('horizon')
             }
             for a in top_articles
         ]
+
+        news_breakdown = breakdown.model_dump()
+        news_breakdown["provenance"] = {
+            "source": "live_fallback",
+            "article_source": "eventregistry",
+            "source_model": "openrouter",
+            "source_model_id": settings.LLM_MODEL,
+            "requested_articles": len(articles),
+        }
 
         return SentimentalAnalysisResponse(
             ticker=ticker,
             market=market,
             overall_sentiment=overall_sentiment,
             score=round(overall_score, 3),
-            news_breakdown=breakdown.model_dump(),
+            news_breakdown=news_breakdown,
             trend=trend,
             confidence=round(confidence, 2),
             analysis_summary=self._generate_summary(breakdown, overall_sentiment, trend),
             influential_articles=influential_articles,
             cached=cached,
             analyzed_at=datetime.now(timezone.utc),
-            source="live_fallback"
+            source="live_fallback",
+            source_model="openrouter",
+            source_model_id=settings.LLM_MODEL,
         )
 
     def _build_artifact_response(self, artifact: Dict[str, Any]) -> SentimentalAnalysisResponse:

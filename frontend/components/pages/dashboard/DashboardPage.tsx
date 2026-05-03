@@ -4,10 +4,12 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   Activity,
   BarChart3,
+  Bookmark,
   CandlestickChart,
   Clock3,
   FileText,
   RefreshCw,
+  Search,
   ShieldCheck,
   Sparkles,
   TrendingDown,
@@ -427,120 +429,190 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_32%),linear-gradient(135deg,#08111f_0%,#0f1b35_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
-            <div className="space-y-4">
-              <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-                Unified Market Intelligence
-              </Tag>
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Dashboard</h1>
-                <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-                  Start from the watchlist, run technical, sentiment, and fundamental work together,
-                  then drill into any stream from one combined workspace.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-                <HeroPill icon={<BarChart3 size={14} />} text="Watchlist-first workflow" />
-                <HeroPill icon={<CandlestickChart size={14} />} text="Parallel technical + sentiment runs" />
-                <HeroPill icon={<FileText size={14} />} text="Deep-dive popups for every stream" />
-              </div>
+      <div className="space-y-10">
+        <section className="mx-auto max-w-5xl">
+          <div className="grid max-w-xl gap-3 sm:grid-cols-2">
+            <MarketIndexCard label="S&P 500" value="5,321.47" change="+0.82%" />
+            <MarketIndexCard label="NASDAQ 100" value="18,742.35" change="+1.14%" />
+          </div>
+
+          <div className="mt-14 text-center">
+            <h1 className="text-4xl font-extrabold tracking-[-0.04em] text-slate-950 md:text-6xl">
+              Smarter Stock Decisions, Simplified.
+            </h1>
+            <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.24em] text-slate-500">
+              Fundamental · Technical · Sentiment
+            </p>
+
+            <div className="mx-auto mt-7 flex max-w-2xl items-center gap-2 rounded-full border border-slate-200 bg-white p-2 shadow-card">
+              <Search size={18} className="ml-3 shrink-0 text-slate-400" />
+              <input
+                className="min-w-0 flex-1 bg-transparent px-1 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+                placeholder="Search any ticker from the watchlist..."
+                value={focusedTicker ?? ''}
+                readOnly
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => runCombinedAnalysis(focusedTicker ?? WATCHLIST[0].ticker)}
+                isLoading={status === 'loading'}
+              >
+                Analyse
+              </Button>
             </div>
 
-            <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-[0.2em] text-blue-50/65">Coverage</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                <SpotlightCard label="Watchlist" value={`${WATCHLIST.length} names`} />
-                <SpotlightCard label="Live engines" value="2 backend" />
-                <SpotlightCard label="Deep dives" value="3 modal views" />
-              </div>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {WATCHLIST.map((item) => (
+                <button
+                  key={item.ticker}
+                  type="button"
+                  onClick={() => runCombinedAnalysis(item.ticker)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-extrabold text-slate-600 transition-all duration-200',
+                    focusedTicker === item.ticker
+                      ? 'border-primary-600 bg-primary-600 text-white shadow-[0_10px_20px_-14px_rgba(37,99,235,0.9)]'
+                      : 'border-slate-200 bg-white hover:border-primary-200 hover:text-primary-700'
+                  )}
+                >
+                  {item.ticker}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          {WATCHLIST.map((item) => {
-            const profile = FUNDAMENTAL_PROFILES[item.ticker];
-            const valuation = getFundamentalGap(profile);
-            const isActive = focusedTicker === item.ticker;
+        <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <Card className="border border-slate-200" variant="bordered" padding="none">
+            <CardHeader className="mb-0 flex flex-row items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <CardTitle className="text-xl">Your Watchlist</CardTitle>
+                <p className="mt-1 text-sm text-slate-500">Select a stock to run the full three-model analysis.</p>
+              </div>
+              <Tag variant="neutral" size="sm">{WATCHLIST.length} stocks</Tag>
+            </CardHeader>
+            <CardContent className="divide-y divide-slate-100">
+              {WATCHLIST.map((item) => {
+                const profile = FUNDAMENTAL_PROFILES[item.ticker];
+                const valuation = getFundamentalGap(profile);
+                const isActive = focusedTicker === item.ticker;
 
-            return (
-              <Card
-                key={item.ticker}
-                className={cn(
-                  'border border-slate-200/90 transition-all duration-200',
-                  isActive && 'border-primary-400 shadow-[0_20px_48px_rgba(37,99,235,0.12)]'
-                )}
-                variant="bordered"
-                padding="none"
-              >
-                <CardContent className="space-y-5 p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h2 className="text-2xl font-semibold text-text-primary">{item.ticker}</h2>
-                        <Tag variant="neutral" size="sm">
-                          {item.exchange}
-                        </Tag>
+                return (
+                  <button
+                    key={item.ticker}
+                    type="button"
+                    onClick={() => runCombinedAnalysis(item.ticker)}
+                    className={cn(
+                      'grid w-full gap-4 px-6 py-5 text-left transition-all duration-200 md:grid-cols-[1fr_160px_140px_150px] md:items-center',
+                      isActive ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                    )}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500">
+                        <Bookmark size={17} />
                       </div>
-                      <p className="mt-1 text-sm font-medium text-text-primary">{profile.companyName}</p>
-                      <p className="mt-1 text-sm text-text-secondary">{item.note}</p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xl font-extrabold tracking-tight text-slate-950">{item.ticker}</p>
+                          <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                            {item.exchange}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">{profile.companyName}</p>
+                        <p className="mt-1 line-clamp-1 text-xs text-slate-500">{item.note}</p>
+                      </div>
                     </div>
-                    <Tag variant="info" size="sm">
-                      {profile.sector}
-                    </Tag>
-                  </div>
 
-                  <div className="flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-3xl font-semibold text-text-primary">{formatMoney(profile.price)}</p>
-                      <p className={cn('mt-1 flex items-center gap-1 text-sm font-medium', item.change >= 0 ? 'text-success-900' : 'text-danger-900')}>
-                        {item.change >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                        {item.change >= 0 ? '+' : ''}
-                        {item.changePercent.toFixed(2)}% today
+                      <p className="eyebrow">Price</p>
+                      <p className="mt-1 text-lg font-extrabold text-slate-950">{formatMoney(profile.price)}</p>
+                    </div>
+
+                    <div>
+                      <p className="eyebrow">Fair Gap</p>
+                      <p className={cn('mt-1 text-lg font-extrabold', valuation.delta >= 0 ? 'text-emerald-600' : 'text-amber-600')}>
+                        {formatSignedPercent(valuation.deltaPct)}
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="flex items-center gap-3 md:justify-end">
                       <SparklineChart
                         data={item.sparklineData}
-                        width={120}
-                        height={44}
+                        width={96}
+                        height={34}
                         color={item.change >= 0 ? '#10B981' : '#EF4444'}
                       />
+                      <span className={cn('text-sm font-extrabold', item.change >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                        {formatSignedPercent(item.changePercent)}
+                      </span>
                     </div>
-                  </div>
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <MiniStat label="Fair value gap" value={formatSignedPercent(valuation.deltaPct)} tone={valuation.tone} />
-                    <MiniStat label="Quality score" value={`${profile.qualityScore.toFixed(1)} / 10`} tone="success" />
-                    <MiniStat label="Volume" value={item.volume} tone="default" />
-                  </div>
+          <div className="space-y-5">
+            <SignalCard
+              eyebrow="Today's strongest buy signal"
+              ticker="NVDA"
+              company="NVIDIA Corp."
+              score="0.91"
+              tag="Strong Buy"
+              tone="success"
+            />
+            <SignalCard
+              eyebrow="Today's biggest risk"
+              ticker="AAPL"
+              company="Apple Inc."
+              score="0.43"
+              tag="Monitor"
+              tone="warning"
+            />
+          </div>
+        </section>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Tag variant={item.seedSentiment === 'Positive' ? 'success' : item.seedSentiment === 'Negative' ? 'danger' : 'neutral'} size="sm">
-                      {item.seedSentiment} sentiment
-                    </Tag>
-                    <Tag variant={item.seedTechnicalSignal === 'BUY' ? 'success' : item.seedTechnicalSignal === 'SELL' ? 'danger' : 'warning'} size="sm">
-                      {item.seedTechnicalSignal} technical
-                    </Tag>
-                  </div>
+        <section>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight text-slate-950">Market Pulse</h2>
+              <p className="text-sm text-slate-500">Stocks ranked by combined quality, valuation, and model-readiness.</p>
+            </div>
+            <Tag variant="neutral">Updated Daily</Tag>
+          </div>
 
-                  <Button
-                    type="button"
-                    size="lg"
-                    fullWidth
-                    isLoading={status === 'loading' && focusedTicker === item.ticker}
-                    onClick={() => runCombinedAnalysis(item.ticker)}
-                  >
-                    Run Full Analysis
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+          <Card className="overflow-hidden border border-slate-200" variant="bordered" padding="none">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
+                <thead className="bg-slate-50/80">
+                  <tr className="text-left text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                    <th className="px-6 py-4">#</th>
+                    <th className="px-6 py-4">Stock</th>
+                    <th className="px-6 py-4">Reason</th>
+                    <th className="px-6 py-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {WATCHLIST.map((item, index) => (
+                    <tr key={item.ticker} className="hover:bg-slate-50/70">
+                      <td className="px-6 py-4 font-extrabold text-slate-400">{index + 1}</td>
+                      <td className="px-6 py-4">
+                        <p className="font-extrabold text-slate-950">{item.ticker}</p>
+                        <p className="text-xs font-semibold text-slate-500">{FUNDAMENTAL_PROFILES[item.ticker].companyName}</p>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">{item.note}</td>
+                      <td className="px-6 py-4 text-right">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => runCombinedAnalysis(item.ticker)}>
+                          Analyse
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </section>
 
         {status === 'idle' && !analysis && (
           <Card className="border border-dashed border-slate-300 bg-white/90" variant="bordered" padding="none">
@@ -819,40 +891,47 @@ export default function DashboardPage() {
   );
 }
 
-function HeroPill({ icon, text }: { icon: ReactNode; text: string }) {
+function MarketIndexCard({ label, value, change }: { label: string; value: string; change: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 backdrop-blur-sm">
-      {icon}
-      <span>{text}</span>
+    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-card">
+      <p className="text-xs font-extrabold text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-sm font-extrabold text-emerald-600">{change}</p>
     </div>
   );
 }
 
-function SpotlightCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
-      <p className="text-xs text-blue-50/65">{label}</p>
-      <p className="mt-1 text-base font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  tone = 'default',
+function SignalCard({
+  eyebrow,
+  ticker,
+  company,
+  score,
+  tag,
+  tone,
 }: {
-  label: string;
-  value: string;
-  tone?: SummaryTone;
+  eyebrow: string;
+  ticker: string;
+  company: string;
+  score: string;
+  tag: string;
+  tone: 'success' | 'warning';
 }) {
-  const styles = TONE_STYLES[tone];
-
   return (
-    <div className={cn('rounded-2xl border px-3 py-3', styles.card)}>
-      <p className="text-xs text-text-secondary">{label}</p>
-      <p className="mt-1 text-base font-semibold text-text-primary">{value}</p>
-    </div>
+    <Card className="border border-slate-200" variant="bordered" padding="none">
+      <CardContent className="p-6">
+        <p className="eyebrow">{eyebrow}</p>
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-3xl font-extrabold tracking-tight text-slate-950">{ticker}</p>
+            <p className="text-sm font-semibold text-slate-500">{company}</p>
+          </div>
+          <Tag variant={tone}>{tag}</Tag>
+        </div>
+        <p className={cn('mt-5 text-5xl font-extrabold tracking-tight', tone === 'success' ? 'text-slate-950' : 'text-slate-400')}>
+          {score}<span className="text-sm text-slate-400"> / 1.00</span>
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

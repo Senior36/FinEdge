@@ -73,7 +73,7 @@ const config: Config = {
         border: '#E2E8F0',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['var(--font-jakarta)', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       fontSize: {
         'xs': ['0.75rem', { lineHeight: '1rem' }],
@@ -92,12 +92,12 @@ const config: Config = {
         bold: '700',
       },
       borderRadius: {
-        'card': '12px',
-        'button': '8px',
+        'card': '16px',
+        'button': '999px',
       },
       boxShadow: {
-        'card': '0 1px 3px rgba(0, 0, 0, 0.1)',
-        'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        'card': '0 1px 2px rgba(15, 23, 42, 0.04)',
+        'card-hover': '0 18px 48px -28px rgba(15, 23, 42, 0.35)',
       },
     },
   },

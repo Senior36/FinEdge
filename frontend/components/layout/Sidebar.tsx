@@ -3,165 +3,126 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Search, 
-  BarChart3, 
+import {
+  BarChart3,
+  Bookmark,
   Building2,
   CandlestickChart,
-  History, 
-  User, 
-  Settings, 
-  Bell,
-  Moon,
-  Sun,
+  ChevronDown,
+  Grid2X2,
   Menu,
-  X
+  MessageSquareText,
+  Plus,
+  Search,
+  TrendingUp,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * Navigation item type
- */
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
 }
 
-/**
- * Sidebar Component
- * 
- * Fixed 260px width sidebar with dark navy background (#0F172A).
- * Includes Logo area, Navigation menu, and Footer area.
- */
+const navItems: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: <Grid2X2 size={15} /> },
+  { label: 'Analyse Stock', href: '/analyze', icon: <Search size={15} /> },
+  { label: 'Fundamental', href: '/fundamental', icon: <Building2 size={15} /> },
+  { label: 'Technical', href: '/technical', icon: <CandlestickChart size={15} /> },
+  { label: 'Sentiment', href: '/analyze', icon: <MessageSquareText size={15} /> },
+  { label: 'Results', href: '/results', icon: <BarChart3 size={15} /> },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const navItems: NavItem[] = [
-    { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
-    { label: 'Technical Analysis', href: '/technical', icon: <CandlestickChart size={20} /> },
-    { label: 'Fundamental Analysis', href: '/fundamental', icon: <Building2 size={20} /> },
-    { label: 'Sentiment Test', href: '/analyze', icon: <Search size={20} /> },
-    { label: 'Results', href: '/results', icon: <BarChart3 size={20} /> },
-    { label: 'History', href: '/history', icon: <History size={20} /> },
-    { label: 'Profile', href: '/profile', icon: <User size={20} /> },
-  ];
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    // TODO: Implement actual dark mode toggle logic
-  };
-
-  const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+  const isActive = (href: string, label: string) => {
+    if (label === 'Sentiment') {
+      return pathname === '/analyze';
+    }
+    if (href === '/dashboard') {
+      return pathname === '/' || pathname.startsWith('/dashboard');
+    }
     return pathname.startsWith(href);
   };
 
   return (
     <>
-      {/* Mobile menu button */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg"
+        className="fixed left-4 top-4 z-50 rounded-full border border-slate-200 bg-white p-2 text-slate-900 shadow-sm lg:hidden"
+        aria-label="Toggle navigation"
       >
-        {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
+        {isMobileOpen ? <X size={22} /> : <Menu size={22} />}
       </button>
 
-      {/* Mobile overlay */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 h-full w-[260px] bg-sidebar-bg text-white flex flex-col z-50 transition-transform duration-300 ease-in-out',
+          'fixed left-0 top-0 z-50 flex h-full w-[224px] flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out',
           'lg:translate-x-0',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Logo Area */}
-        <div className="p-6 border-b border-white/10">
-          <Link href="/" className="flex items-center gap-3">
-            {/* Blue gradient square icon */}
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">F</span>
+        <div className="flex h-[74px] items-center border-b border-slate-200 px-5">
+          <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setIsMobileOpen(false)}>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-[0_12px_24px_-14px_rgba(37,99,235,0.8)]">
+              <TrendingUp size={18} strokeWidth={2.6} />
             </div>
-            <span className="text-xl font-bold">FinEdge</span>
+            <span className="text-lg font-extrabold tracking-tight text-slate-950">FinEdge</span>
           </Link>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 py-6 px-4 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200',
-                    'hover:bg-white/10',
-                    isActive(item.href)
-                      ? 'bg-white/10 text-white'
-                      : 'text-sidebar-text'
-                  )}
-                  onClick={() => setIsMobileOpen(false)}
-                >
-                  {item.icon}
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              </li>
-            ))}
+            {navItems.map((item) => {
+              const active = isActive(item.href, item.label);
+
+              return (
+                <li key={`${item.label}-${item.href}`}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200',
+                      active
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-950'
+                    )}
+                    onClick={() => setIsMobileOpen(false)}
+                  >
+                    <span className={cn(active ? 'text-emerald-600' : 'text-slate-400')}>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
+
+          <div className="mt-8 border-t border-slate-200 pt-5">
+            <button className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] font-extrabold uppercase tracking-[0.08em] text-slate-500 hover:bg-slate-50">
+              <span className="flex items-center gap-2">
+                <Bookmark size={15} className="text-amber-500" />
+                Watchlist
+              </span>
+              <span className="flex items-center gap-2 text-slate-400">
+                <Plus size={14} />
+                <ChevronDown size={14} />
+              </span>
+            </button>
+          </div>
         </nav>
 
-        {/* Footer Area */}
-        <div className="p-4 border-t border-white/10 space-y-2">
-          {/* Alerts with red badge */}
-          <Link
-            href="/alerts"
-            className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-white/10 transition-all duration-200 group"
-            onClick={() => setIsMobileOpen(false)}
-          >
-            <div className="flex items-center gap-3">
-              <Bell size={20} className="text-sidebar-text group-hover:text-white" />
-              <span className="font-medium text-sidebar-text group-hover:text-white">Alerts</span>
-            </div>
-            <span className="bg-danger-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              3
-            </span>
-          </Link>
-
-          {/* Settings */}
-          <Link
-            href="/settings"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-all duration-200 group"
-            onClick={() => setIsMobileOpen(false)}
-          >
-            <Settings size={20} className="text-sidebar-text group-hover:text-white" />
-            <span className="font-medium text-sidebar-text group-hover:text-white">Settings</span>
-          </Link>
-
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-all duration-200"
-          >
-            {isDarkMode ? (
-              <Sun size={20} className="text-sidebar-text" />
-            ) : (
-              <Moon size={20} className="text-sidebar-text" />
-            )}
-            <span className="font-medium text-sidebar-text">
-              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-            </span>
-          </button>
+        <div className="border-t border-slate-200 px-4 py-4 text-[11px] leading-5 text-slate-500">
+          <p className="font-semibold">© 2026 FinEdge</p>
+          <p>Senior Design Project</p>
         </div>
       </aside>
     </>

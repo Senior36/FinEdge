@@ -1,8 +1,6 @@
-import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
-from eventregistry import EventRegistry, QueryArticlesIter
-import httpx
+from eventregistry import ArticleInfoFlags, EventRegistry, QueryArticlesIter, ReturnInfo
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -38,23 +36,33 @@ class NewsAPIClient:
 
         try:
             query = QueryArticlesIter(
-                keywords=company_name,
+                keywords=f"{company_name} {ticker}",
                 lang='eng',
                 dateStart=start_date_str,
                 dateEnd=end_date_str
             )
 
             articles = []
-            for article in query.execQuery(self._er, maxItems=max_articles):
+            seen_urls = set()
+            return_info = ReturnInfo(articleInfo=ArticleInfoFlags(body=True))
+
+            for article in query.execQuery(self._er, maxItems=max_articles, returnInfo=return_info):
+                url = article.get('url')
+                if url and url in seen_urls:
+                    continue
+                if url:
+                    seen_urls.add(url)
+
+                published_at = article.get('dateTime') or article.get('dateTimePub') or article.get('date')
                 articles.append({
                     'ticker': ticker,
                     'company': company_name,
                     'title': article.get('title'),
                     'body': article.get('body', ''),
-                    'url': article.get('url'),
+                    'url': url,
                     'source': article.get('source', {}).get('title') if article.get('source') else None,
-                    'published_at': article.get('dateTime') or article.get('dateTimePub'),
-                    'published_date': start_date_str
+                    'published_at': published_at,
+                    'published_date': str(published_at or start_date_str)[:10]
                 })
 
             logger.info(f"Fetched {len(articles)} articles for {ticker}")

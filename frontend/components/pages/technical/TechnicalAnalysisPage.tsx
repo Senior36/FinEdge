@@ -134,28 +134,27 @@ export default function TechnicalPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),linear-gradient(135deg,#08111f_0%,#101f3c_46%,#eff6ff_100%)] p-6 text-white shadow-xl md:p-8">
-        <div className="max-w-4xl space-y-4">
-          <Tag variant="info" size="sm" className="bg-white/12 text-blue-50 ring-1 ring-white/15">
-            Multi-Timeframe Forecasting
-          </Tag>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Technical Analysis</h1>
-            <p className="max-w-3xl text-sm leading-6 text-blue-50/82 md:text-base">
-              Choose the daily or one-minute artifact model, fetch the matching candle feed, and project
-              the next candles with the ensemble and RL policy.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 text-xs text-blue-50/80">
-            <HeroPill icon={<Clock3 size={14} />} text="1D and 1Min modes" />
-            <HeroPill icon={<CandlestickChart size={14} />} text="Separate candle requirements" />
-            <HeroPill icon={<Sparkles size={14} />} text="Real model artifacts" />
-          </div>
+      <div className="mx-auto max-w-5xl text-center">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 shadow-card">
+          <CandlestickChart size={14} className="text-primary-600" />
+          Multi-Timeframe Forecasting
+        </div>
+        <div className="mt-6 space-y-3">
+          <h1 className="text-4xl font-extrabold tracking-[-0.04em] text-slate-950 md:text-6xl">Technical Analysis</h1>
+          <p className="mx-auto max-w-3xl text-sm leading-6 text-slate-500 md:text-base">
+            Choose the daily or one-minute artifact model, fetch the matching candle feed, and project
+            the next candles with the ensemble and RL policy.
+          </p>
+        </div>
+        <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs font-bold text-slate-600">
+          <HeroPill icon={<Clock3 size={14} />} text="1D and 1Min modes" />
+          <HeroPill icon={<CandlestickChart size={14} />} text="Separate candle requirements" />
+          <HeroPill icon={<Sparkles size={14} />} text="Real model artifacts" />
         </div>
       </div>
 
       <Card className="border border-slate-200/90" variant="bordered">
-        <CardHeader className="mb-0 border-b border-slate-200 pb-5">
+        <CardHeader className="mb-0 border-b border-slate-200 px-6 py-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle className="text-2xl">Run Technical Analysis</CardTitle>
@@ -168,7 +167,7 @@ export default function TechnicalPage() {
             </Tag>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent className="p-6">
           <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_220px] xl:items-end">
             <Input
               label="Ticker"
@@ -299,7 +298,7 @@ export default function TechnicalPage() {
 
 function HeroPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 backdrop-blur-sm">
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-card">
       {icon}
       <span>{text}</span>
     </div>
