@@ -1,0 +1,58 @@
+.env
+backend/.env
+frontend/.env
+**/.env.local
+**/.env.*.local
+
+# Local research/model artifacts
+fundamental_model/
+
+# Keep only production sentiment model integration files.
+Sentimental_Model/*
+!Sentimental_Model/Dockerfile
+!Sentimental_Model/export_artifacts.py
+!Sentimental_Model/requirements.txt
+!Sentimental_Model/sentiment_benchmark.py
+!Sentimental_Model/sentimental_trades.txt
+!Sentimental_Model/outputs/
+Sentimental_Model/outputs/*
+!Sentimental_Model/outputs/latest/
+!Sentimental_Model/outputs/latest/*.json
+!Sentimental_Model/outputs/runs/
+Sentimental_Model/outputs/runs/*
+!Sentimental_Model/outputs/runs/*/
+!Sentimental_Model/outputs/runs/*/*.json
+
+# Python generated files and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# JavaScript/Next.js generated files
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+.ipynb_checkpoints/
+
+# Logs and local databases
+*.log
+*.sqlite
+*.sqlite3
+*.db
+fundamental_model/.venv/
+fundamental_model/data/features.csv
+node_modules/
+.next/
